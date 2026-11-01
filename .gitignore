@@ -31,6 +31,7 @@ Thumbs.db
 /storage/cache/*
 /storage/session/*
 /storage/temp/*
+/storage/*.sqlite
 
 
 # PHPUnit / Pest
