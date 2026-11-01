@@ -7,6 +7,8 @@ use STDW\Cache\Cache;
 use STDW\Cache\CacheConfig;
 use STDW\Contract\Cache\CacheInterface;
 
+use function Sourcerer\config;
+
 
 /**
  * Cache: the vendor cache service, configured from config/cache.php.

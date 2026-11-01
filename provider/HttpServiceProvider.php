@@ -10,6 +10,8 @@ use STDW\Contract\Cache\CacheInterface;
 use STDW\Http\Router\RouteCollection;
 use STDW\Http\Router\Router;
 
+use function Sourcerer\config;
+
 
 /**
  * Routing plumbing: the route collection and the router. The router is lazy,

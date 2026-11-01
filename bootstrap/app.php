@@ -1,13 +1,14 @@
 <?php declare(strict_types=1);
 
+use Sourcerer\Path;
+
+
 date_default_timezone_set('America/Sao_Paulo');
 
 const ROOT = __DIR__ . '/../';
 
+
 require_once ROOT .'vendor/autoload.php';
-
-
-use Sourcerer\Path;
 
 Path::register('root', ROOT);
 Path::register('app', 'app/', 'root');

@@ -9,9 +9,6 @@ use STDW\Contract\View\AliasManagerInterface;
 
 abstract class ModuleProviderAbstract extends SourcererModuleProviderAbstract
 {
-    abstract public function configure(): void;
-
-
     /**
      * Registers a view namespace for this module.
      *

@@ -10,8 +10,11 @@ use STDW\Contract\Http\RequestHandlerInterface;
 use STDW\Http\Handler\RequestHandler;
 use STDW\Http\Middleware\MiddlewareManager;
 
+use Sourcerer\Contract\Http\RoutingMiddlewareCollectionInterface;
 use Sourcerer\Http\RoutingDispatcherMiddleware;
 use Sourcerer\Http\RoutingMiddlewareCollection;
+
+use function Sourcerer\config;
 
 
 /**
@@ -26,13 +29,13 @@ final class PipelineServiceProvider extends ServiceProviderAbstracted
     {
         $this->container->singleton(MiddlewareManagerInterface::class, MiddlewareManager::class);
 
-        $this->container->singleton(RoutingMiddlewareCollection::class, static function (ContainerInterface $container): RoutingMiddlewareCollection {
+        $this->container->singleton(RoutingMiddlewareCollectionInterface::class, static function (ContainerInterface $container): RoutingMiddlewareCollectionInterface {
             return new RoutingMiddlewareCollection($container);
         });
 
         $this->container->singleton(RoutingDispatcherMiddleware::class, static function (ContainerInterface $container): RoutingDispatcherMiddleware {
-            /** @var RoutingMiddlewareCollection $middlewares */
-            $middlewares = $container->get(RoutingMiddlewareCollection::class);
+            /** @var RoutingMiddlewareCollectionInterface $middlewares */
+            $middlewares = $container->get(RoutingMiddlewareCollectionInterface::class);
 
             return new RoutingDispatcherMiddleware($container, $middlewares);
         });

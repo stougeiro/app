@@ -5,7 +5,6 @@ use Sourcerer\Http\Kernel;
 use STDW\Http\Request;
 
 
-
 try
 {
     require_once __DIR__ . '/../bootstrap/app.php';

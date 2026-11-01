@@ -10,6 +10,8 @@ use STDW\View\Engine\PhpEngine;
 use STDW\View\ViewConfig;
 use STDW\View\ViewManager;
 
+use function Sourcerer\config;
+
 
 /**
  * View: the view manager and the alias capability it exposes, configured from
