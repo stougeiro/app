@@ -1,0 +1,16 @@
+.git
+.github
+.devcontainer
+.agents
+.idea
+.vscode
+.opencode
+project
+public_html
+*.log
+.phpunit.result.cache
+.phpunit.cache
+.phpstan
+.pest
+coverage
+build

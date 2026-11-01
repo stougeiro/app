@@ -2,8 +2,8 @@
 .devcontainer/
 
 # Composer
-/vendor/
-composer.lock
+/project/vendor/
+/project/composer.lock
 
 # OpenCode
 .opencode/
@@ -28,10 +28,11 @@ composer-cache/
 Thumbs.db
 
 # Runtime storage
-/storage/cache/*
-/storage/session/*
-/storage/temp/*
-/storage/*.sqlite
+/project/storage/cache/*
+/project/storage/log/*
+/project/storage/session/*
+/project/storage/temp/*
+/project/storage/*.sqlite
 
 
 # PHPUnit / Pest
@@ -52,4 +53,4 @@ coverage/
 !.gitkeep
 
 # Ambiente
-env.json
+/project/env.json

@@ -6,7 +6,7 @@ parameters:
         - contract
         - database
         - provider
-        - public
+        - ../public_html
     excludePaths:
         - app/*/View/*
     bootstrapFiles:
