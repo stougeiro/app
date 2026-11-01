@@ -12,6 +12,7 @@ use App\Provider\HttpServiceProvider;
 use App\Provider\PipelineServiceProvider;
 use App\Provider\AppServiceProvider;
 
+use App\Error\ErrorModuleProvider;
 use App\HelloWorld\HelloWorldModuleProvider;
 
 
@@ -32,6 +33,7 @@ return
     ],
 
     'modules' => [
+        ErrorModuleProvider::class,
         HelloWorldModuleProvider::class,
     ],
 ];
