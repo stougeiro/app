@@ -33,7 +33,13 @@
     },
     "require": {
         "php": ">=8.2",
+        "ext-pdo": "*",
+        "ext-pdo_sqlite": "*",
         "stougeiro/base": "^0.4.0",
+        "stougeiro/base-contract": "^0.1.0",
+        "stougeiro/container": "^4.0",
+        "stougeiro/http": "^2.2",
+        "stougeiro/router": "^1.0",
         "stougeiro/view": "^2.0",
         "stougeiro/cache": "^2.0",
         "stougeiro/session": "^2.0",
@@ -52,8 +58,7 @@
     "scripts": {
         "stan": "vendor/bin/phpstan",
         "pest": "vendor/bin/pest",
-        "cover": "vendor/bin/pest --coverage",
-        "bench": "BENCH=1 vendor/bin/pest tests/Performance"
+        "cover": "vendor/bin/pest --coverage"
     },
     "config": {
         "allow-plugins": {
