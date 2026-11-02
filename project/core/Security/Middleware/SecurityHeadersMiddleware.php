@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace App\Core\Http;
+namespace App\Core\Security\Middleware;
 
 use STDW\Contract\Http\MiddlewareInterface;
 use STDW\Contract\Http\RequestInterface;
