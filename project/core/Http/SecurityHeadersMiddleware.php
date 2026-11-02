@@ -11,7 +11,7 @@ use Closure;
 
 final class SecurityHeadersMiddleware implements MiddlewareInterface
 {
-    private const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self';";
+    private const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self';";
 
 
     public function process(RequestInterface $request, ResponseInterface $response, Closure $next): ResponseInterface
@@ -26,7 +26,7 @@ final class SecurityHeadersMiddleware implements MiddlewareInterface
     private function apply(ResponseInterface $response): ResponseInterface
     {
         return $response
-            ->withHeader('X-Frame-Options', 'SAMEORIGIN')
+            ->withHeader('X-Frame-Options', 'DENY')
             ->withHeader('X-Content-Type-Options', 'nosniff')
             ->withHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
             ->withHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
