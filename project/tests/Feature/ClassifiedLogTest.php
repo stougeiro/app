@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-use App\Log\ClassifiedLog;
+use App\Core\Log\ClassifiedLog;
 use Sourcerer\Log\Log;
 
 beforeEach(function () {

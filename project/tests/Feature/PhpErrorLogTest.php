@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-use App\Log\PhpErrorLog;
+use App\Core\Log\PhpErrorLog;
 
 test('configures a daily php error log when the directory is writable', function () {
     $directory = sys_get_temp_dir() . '/php_error_log_'. uniqid();

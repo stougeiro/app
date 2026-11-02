@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-use App\Error\Renderer\ViewErrorRenderer;
+use App\Core\Error\ViewErrorRenderer;
 use Sourcerer\Contract\Error\HttpException;
 use Sourcerer\Http\Kernel;
 use Tests\Fixtures\FakeRequest;
