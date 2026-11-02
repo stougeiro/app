@@ -72,7 +72,7 @@ app/
 │   ├── app/          application modules
 │   ├── bootstrap/    runtime bootstrap
 │   ├── config/       application configuration
-│   ├── contract/     application-level contracts
+│   ├── core/         app-level foundations
 │   ├── provider/     service providers
 │   ├── storage/      cache, logs, sessions and temporary files
 │   ├── tests/        Pest tests
