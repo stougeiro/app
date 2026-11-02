@@ -1,5 +1,7 @@
 <?php declare(strict_types=1);
 
+use App\Log\PhpErrorLog;
+
 use Sourcerer\Path;
 
 
@@ -18,3 +20,5 @@ Path::register('cache', 'cache/', 'storage');
 Path::register('log', 'log/', 'storage');
 Path::register('session', 'session/', 'storage');
 Path::register('temp', 'temp/', 'storage');
+
+PhpErrorLog::configure(Path::get('log') .'php-error-'. date('Ymd') .'.log');
