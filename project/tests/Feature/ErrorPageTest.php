@@ -33,6 +33,8 @@ test('development error page renders the diagnostic layout', function () {
         ->and($html)->toContain('Development Mode')
         ->and($html)->toContain('Stack Trace')
         ->and($html)->toContain('Code Snippet')
+        ->and($html)->toContain('/assets/error.css')
+        ->and($html)->not->toContain('<style>')
         ->and($html)->not->toContain('Local Variables');
 });
 
