@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace App\Error\Renderer;
+namespace App\Core\Error;
 
 use Sourcerer\Contract\Error\ErrorRendererInterface;
 use Sourcerer\Error\ErrorRenderer;

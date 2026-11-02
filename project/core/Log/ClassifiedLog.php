@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace App\Log;
+namespace App\Core\Log;
 
 use Sourcerer\Contract\Log\LogInterface;
 use Sourcerer\Log\Log;

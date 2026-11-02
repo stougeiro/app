@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-use App\Log\PhpErrorLog;
+use App\Core\Log\PhpErrorLog;
 
 use Sourcerer\Path;
 

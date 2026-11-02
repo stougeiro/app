@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace App\Contract\Module;
+namespace App\Core\Module;
 
 use Sourcerer\Contract\Module\ModuleProviderAbstract as SourcererModuleProviderAbstract;
 

@@ -2,7 +2,7 @@
 
 namespace App\Error;
 
-use App\Contract\Module\ModuleProviderAbstract;
+use App\Core\Module\ModuleProviderAbstract;
 
 
 final class ErrorModuleProvider extends ModuleProviderAbstract

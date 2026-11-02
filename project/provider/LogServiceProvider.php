@@ -2,7 +2,7 @@
 
 namespace App\Provider;
 
-use App\Log\ClassifiedLog;
+use App\Core\Log\ClassifiedLog;
 
 use STDW\Contract\Container\ServiceProviderAbstracted;
 

@@ -2,7 +2,7 @@
 
 namespace App\HelloWorld\Controller;
 
-use App\Contract\Http\ControllerAbstract;
+use App\Core\Http\ControllerAbstract;
 
 use STDW\Contract\Http\ResponseInterface;
 

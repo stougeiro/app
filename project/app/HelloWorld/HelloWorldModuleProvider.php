@@ -2,7 +2,7 @@
 
 namespace App\HelloWorld;
 
-use App\Contract\Module\ModuleProviderAbstract;
+use App\Core\Module\ModuleProviderAbstract;
 
 
 /**

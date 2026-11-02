@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace App\Log;
+namespace App\Core\Log;
 
 use Throwable;
 
@@ -9,7 +9,7 @@ final class PhpErrorLog
 {
     public static function configure(string $path): bool
     {
-        if (! function_exists('ini_set') || ! function_exists('ini_get')) {
+        if ( ! function_exists('ini_set') || ! function_exists('ini_get')) {
             return false;
         }
 
@@ -24,7 +24,7 @@ final class PhpErrorLog
 
         $directory = dirname($path);
 
-        if (! is_dir($directory) || ! is_writable($directory)) {
+        if ( ! is_dir($directory) || ! is_writable($directory)) {
             return false;
         }
 

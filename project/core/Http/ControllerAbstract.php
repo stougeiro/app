@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace App\Contract\Http;
+namespace App\Core\Http;
 
 use Sourcerer\Contract\Http\ControllerAbstract as SourcererControllerAbstract;
 
