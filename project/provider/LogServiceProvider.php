@@ -16,9 +16,11 @@ final class LogServiceProvider extends ServiceProviderAbstracted
     public function register(): void
     {
         $this->container->singleton(LogInterface::class, static function (): LogInterface {
+            $date = date('Ymd');
+
             return new ClassifiedLog(
-                new Log(Path::get('log') .'error.log'),
-                new Log(Path::get('log') .'security.log'),
+                new Log(Path::get('log') ."error-{$date}.log"),
+                new Log(Path::get('log') ."security-{$date}.log"),
             );
         });
     }
