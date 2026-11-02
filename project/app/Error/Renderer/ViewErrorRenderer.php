@@ -17,12 +17,12 @@ use function Sourcerer\config;
 final class ViewErrorRenderer implements ErrorRendererInterface, ServiceFactoryInterface
 {
     private const MESSAGES = [
-        400 => ['title' => 'Requisição inválida', 'message' => 'A requisição não pôde ser entendida.'],
-        403 => ['title' => 'Acesso negado', 'message' => 'Você não tem permissão para acessar este recurso.'],
-        404 => ['title' => 'Não encontrado', 'message' => 'O recurso solicitado não existe.'],
-        405 => ['title' => 'Método não permitido', 'message' => 'O método usado não é aceito por este recurso.'],
-        429 => ['title' => 'Muitas requisições', 'message' => 'Aguarde alguns instantes e tente novamente.'],
-        500 => ['title' => 'Erro na aplicação', 'message' => 'Ocorreu um erro inesperado.'],
+        400 => ['title' => 'Bad Request', 'message' => 'The request could not be understood.'],
+        403 => ['title' => 'Forbidden', 'message' => 'You do not have permission to access this resource.'],
+        404 => ['title' => 'Not Found', 'message' => 'The requested resource does not exist.'],
+        405 => ['title' => 'Method Not Allowed', 'message' => 'The method used is not accepted by this resource.'],
+        429 => ['title' => 'Too Many Requests', 'message' => 'Wait a moment and try again.'],
+        500 => ['title' => 'Internal Server Error', 'message' => 'An unexpected error occurred.'],
     ];
 
 
@@ -62,14 +62,15 @@ final class ViewErrorRenderer implements ErrorRendererInterface, ServiceFactoryI
             );
         }
 
-        if ($status >= 500 && $development) {
+        if ($development) {
             return $this->views->render('error:development', [
                 'id' => $id,
                 'type' => $error::class,
+                'short_type' => $this->shortType($error::class),
                 'message' => $error->getMessage(),
                 'file' => $error->getFile(),
                 'line' => $error->getLine(),
-                'trace' => $error->getTraceAsString(),
+                'trace' => $this->trace($error),
                 'snippet' => $this->snippet($error->getFile(), $error->getLine()),
             ]);
         }
@@ -77,7 +78,7 @@ final class ViewErrorRenderer implements ErrorRendererInterface, ServiceFactoryI
         $message = $this->message($error, $status, $override);
 
         return $this->views->render('error:page', [
-            'id' => $id,
+            'status' => $status,
             'title' => $message['title'],
             'message' => $message['message'],
         ]);
@@ -93,6 +94,37 @@ final class ViewErrorRenderer implements ErrorRendererInterface, ServiceFactoryI
         }
 
         return max(5, min(30, $pad));
+    }
+
+    private function shortType(string $type): string
+    {
+        $position = strrpos($type, '\\');
+
+        return $position === false ? $type : substr($type, $position + 1);
+    }
+
+    /**
+     * @return array<int, array{file: string, line: ?int, call: string}>
+     */
+    private function trace(Throwable $error): array
+    {
+        $frames = [];
+
+        foreach ($error->getTrace() as $frame) {
+            $class = $frame['class'] ?? '';
+            $type = $frame['type'] ?? '';
+            $function = $frame['function'];
+            $file = $frame['file'] ?? '';
+            $line = $frame['line'] ?? null;
+
+            $frames[] = [
+                'file' => $file,
+                'line' => $line,
+                'call' => $class . $type . $function .'()',
+            ];
+        }
+
+        return $frames;
     }
 
     /**
