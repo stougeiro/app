@@ -10,14 +10,10 @@ return
     'mode' => 'html', // html | json
 
     'messages' => [
-        404 => [
-            'title' => 'Página não encontrada',
-            'message' => 'O recurso solicitado não existe.',
-        ],
-        500 => [
-            'title' => 'Erro na aplicação',
-            'message' => 'Ocorreu um erro inesperado.',
-        ],
+        // 404 => [
+        //     'title' => 'Page not found',
+        //     'message' => 'The requested resource does not exist.',
+        // ],
     ],
 
     'snippet' => [
