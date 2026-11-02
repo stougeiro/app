@@ -13,7 +13,6 @@ use STDW\Http\Middleware\MiddlewareManager;
 use Sourcerer\Contract\Http\RoutingMiddlewareCollectionInterface;
 use Sourcerer\Http\RoutingDispatcherMiddleware;
 use Sourcerer\Http\RoutingMiddlewareCollection;
-
 use function Sourcerer\config;
 
 
