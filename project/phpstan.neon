@@ -3,7 +3,7 @@ parameters:
     paths:
         - app
         - bootstrap
-        - contract
+        - core
         - database
         - provider
         - ../public_html

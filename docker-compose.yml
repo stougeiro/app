@@ -11,7 +11,7 @@ services:
       - ./project/app:/var/www/project/app:ro
       - ./project/bootstrap:/var/www/project/bootstrap:ro
       - ./project/config:/var/www/project/config:ro
-      - ./project/contract:/var/www/project/contract:ro
+      - ./project/core:/var/www/project/core:ro
       - ./project/database:/var/www/project/database:ro
       - ./project/provider:/var/www/project/provider:ro
       - ./project/env.json:/var/www/project/env.json:ro
