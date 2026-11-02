@@ -20,12 +20,13 @@ test('security headers are applied before and after the next middleware', functi
     );
 
     expect($seenBeforeNext)->toBeTrue()
-        ->and($response->getHeader('X-Frame-Options'))->toBe('SAMEORIGIN')
+        ->and($response->getHeader('X-Frame-Options'))->toBe('DENY')
         ->and($response->getHeader('X-Content-Type-Options'))->toBe('nosniff')
-        ->and($response->getHeader('X-XSS-Protection'))->toBe('1; mode=block')
         ->and($response->getHeader('Referrer-Policy'))->toBe('strict-origin-when-cross-origin')
         ->and($response->getHeader('Permissions-Policy'))->toBe('geolocation=(), microphone=(), camera=()')
         ->and($response->getHeader('Content-Security-Policy'))->toContain("style-src 'self'")
+        ->and($response->getHeader('Content-Security-Policy'))->toContain("frame-ancestors 'none'")
+        ->and($response->getHeader('Content-Security-Policy'))->toContain("form-action 'self'")
         ->and($response->getHeader('Content-Security-Policy'))->not->toContain('unsafe-inline')
         ->and($response->getHeader('X-Test'))->toBe('preserved');
 });
@@ -40,6 +41,6 @@ test('security headers are reapplied to a replacement response', function () {
     );
 
     expect($response->getBody())->toBe('replaced')
-        ->and($response->getHeader('X-Frame-Options'))->toBe('SAMEORIGIN')
+        ->and($response->getHeader('X-Frame-Options'))->toBe('DENY')
         ->and($response->getHeader('Content-Security-Policy'))->toContain("style-src 'self'");
 });

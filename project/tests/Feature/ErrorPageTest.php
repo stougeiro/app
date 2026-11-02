@@ -33,7 +33,7 @@ test('development error page renders the diagnostic layout', function () {
         ->and($html)->toContain('Development Mode')
         ->and($html)->toContain('Stack Trace')
         ->and($html)->toContain('Code Snippet')
-        ->and($html)->toContain('/assets/error.css')
+        ->and($html)->toContain('/assets/error/development.css')
         ->and($html)->not->toContain('<style>')
         ->and($html)->not->toContain('Local Variables');
 });
@@ -52,6 +52,7 @@ test('production error page has only status and message', function () {
 
     expect($html)->toContain('>404<')
         ->and($html)->toContain('Not Found')
+        ->and($html)->toContain('/assets/error/page.css')
         ->and($html)->not->toContain('ERROR_ID');
 });
 
