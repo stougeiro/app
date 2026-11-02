@@ -1,6 +1,7 @@
 <?php declare(strict_types=1);
 
 use Sourcerer\Http\Kernel;
+use Sourcerer\Error\Fallback;
 
 use STDW\Http\Request;
 
@@ -17,12 +18,5 @@ try
 
 catch (Throwable $error)
 {
-    error_log((string) $error);
-
-    if (headers_sent()) {
-        return;
-    }
-
-    header_remove();
-    http_response_code(500);
+    Fallback::emit($error);
 }
