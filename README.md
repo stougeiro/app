@@ -19,6 +19,9 @@ The goal is an explicit, inspectable application with no hidden module discovery
 no build step required at runtime, and behavior that is predictable on ordinary
 shared servers.
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and [AGENTS.md](AGENTS.md)
+for the operational rules used by agents and contributors.
+
 ## ✨ Features
 
 - **Shared-hosting layout**: application in `project/`, web root in `public_html/`.
