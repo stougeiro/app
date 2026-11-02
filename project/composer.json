@@ -1,6 +1,6 @@
 {
     "name": "stougeiro/app",
-    "description": "",
+    "description": "A PHP 8.2 application foundation for shared hosting, built on the Stougeiro runtime and module contracts.",
     "type": "project",
     "minimum-stability": "stable",
     "prefer-stable": true,
@@ -12,6 +12,15 @@
         }
     ],
     "keywords": [
+        "php82",
+        "application",
+        "shared-hosting",
+        "apache",
+        "modules",
+        "http",
+        "microframework",
+        "logging",
+        "error-handling"
     ],
     "support": {
         "issues": "https://github.com/stougeiro/app/issues",
