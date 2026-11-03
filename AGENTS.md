@@ -21,6 +21,7 @@ Read `ARCHITECTURE.md` before changing code.
 | Contract reusable across runtimes/apps | `stougeiro/base-contract` |
 | Runtime/foundation for FPM | `stougeiro/base` |
 | App-wide foundation or behavior | `project/core` |
+| Security service or middleware | `project/core/Security` |
 | DI wiring | `project/provider` |
 | Local feature/module | `project/app/<Module>` |
 | Global middleware | `project/config/middlewares.php` |
@@ -58,10 +59,14 @@ Read `ARCHITECTURE.md` before changing code.
   `project/config/middlewares.php`.
 - Module/controller middleware belongs to the module config.
 - `OPTIONS` is handled by the controller base. Do not implement it manually.
-- `App\Core\Http\SecurityHeadersMiddleware` is opt-in. Do not enable it unless
-  the task explicitly asks.
+- `App\Core\Security\Middleware\SecurityHeadersMiddleware` is opt-in. Do not
+  enable it unless the task explicitly asks.
+- `CsrfMiddleware` and `RateLimitMiddleware` are opt-in per module/controller.
+  Defaults live in `project/config/security.php`.
 - CSP uses `style-src 'self'`. Do not add inline `<style>` or inline styles.
   Put public CSS under `public_html/assets`.
+- Auth is not part of the current core. Do not add auth middleware or auth
+  services unless the task explicitly asks for the Auth module.
 
 ## Errors and logs
 

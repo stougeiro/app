@@ -39,7 +39,7 @@ project/
 ├── app/          application-local modules
 ├── bootstrap/    runtime bootstrap
 ├── config/       application configuration
-├── core/         application foundations
+├── core/         application foundations (HTTP, security, logging, errors)
 ├── database/     database-facing application code or fixtures
 ├── provider/     service providers
 ├── storage/      cache, logs, sessions and temporary files
@@ -61,6 +61,7 @@ Nothing under `project/` should be exposed by the web server.
 | Reusable contract or abstract base for any runtime | `stougeiro/base-contract` |
 | FPM runtime implementation | `stougeiro/base` |
 | App-wide foundation or cross-cutting behavior | `project/core` |
+| Security service or middleware | `project/core/Security` |
 | Service construction and container bindings | `project/provider` |
 | Application-local feature | `project/app/<Module>` |
 | Global middleware policy | `project/config/middlewares.php` |
@@ -243,8 +244,21 @@ or rotate old logs.
 
 ## Security
 
-`App\Core\Http\SecurityHeadersMiddleware` is optional and is listed in
-`project/config/middlewares.php` when enabled.
+Security primitives live under `project/core/Security`:
+
+- `Csrf`: session-backed token generation and validation;
+- `RateLimit`: cache-backed request limiting;
+- `Middleware/CsrfMiddleware`;
+- `Middleware/RateLimitMiddleware`;
+- `Middleware/SecurityHeadersMiddleware`.
+
+CSRF and rate limiting are opt-in per module/controller through the module
+middleware map. Security headers are opt-in globally through
+`project/config/middlewares.php`. The CSRF and rate limit defaults are defined in
+`project/config/security.php`.
+
+`App\Core\Security\Middleware\SecurityHeadersMiddleware` is optional and is
+listed in `project/config/middlewares.php` when enabled.
 
 It applies:
 

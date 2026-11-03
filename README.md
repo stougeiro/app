@@ -33,6 +33,8 @@ for the operational rules used by agents and contributors.
 - **Daily logs**: application logs use `YYYYMMDD` file suffixes.
 - **Services**: cache, view, session, events, routing, database and logging are
   registered explicitly.
+- **Security primitives**: optional CSRF, rate limit and security headers
+  middleware under `core/Security`.
 - **Docker development**: PHP 8.2 + Apache with the vendor directory kept inside
   the image.
 - **Quality tooling**: PHPStan Level 9 and a Pest suite.
