@@ -13,7 +13,6 @@ final class HelloWorldModuleProvider extends ModuleProviderAbstract
 {
     public function configure(): void
     {
-        $this->middlewares(__DIR__ . '/Config/middlewares.php');
         $this->routes(__DIR__ . '/Config/routes.php');
         $this->views('hello', __DIR__ . '/View');
     }
