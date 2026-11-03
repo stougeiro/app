@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-use App\Core\Http\SecurityHeadersMiddleware;
+use App\Core\Security\Middleware\SecurityHeadersMiddleware;
 use STDW\Contract\Http\ResponseInterface;
 use STDW\Http\Response;
 use Tests\Fixtures\FakeRequest;
