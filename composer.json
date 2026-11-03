@@ -1,6 +1,6 @@
 {
     "name": "stougeiro/app",
-    "description": "A PHP 8.2 application foundation for shared hosting, built on the Stougeiro runtime and module contracts.",
+    "description": "A small PHP 8.2 modular application foundation for shared hosting.",
     "type": "project",
     "minimum-stability": "stable",
     "prefer-stable": true,
@@ -68,7 +68,8 @@
     "scripts": {
         "stan": "vendor/bin/phpstan",
         "pest": "vendor/bin/pest",
-        "cover": "vendor/bin/pest --coverage"
+        "cover": "vendor/bin/pest --coverage",
+        "cover:deploy": "vendor/bin/pest tests/Feature/Deploy --coverage --coverage-filter=deploy/src"
     },
     "config": {
         "allow-plugins": {
