@@ -48,11 +48,76 @@ test('rejects a missing env', function () {
 });
 
 
+test('rejects an env symlink', function () {
+    $root = deployEnvWorkspace('staging', ['environment' => 'staging']);
+    $link = $root .'/link.json';
+    symlink(EnvFile::path($root, 'staging'), $link);
+
+    expect(fn () => EnvFile::load($link, 'staging'))
+        ->toThrow(RuntimeException::class, 'cannot be a symlink');
+});
+
+
+test('rejects an env larger than the limit', function () {
+    $root = deployEnvWorkspace('staging', ['environment' => 'staging']);
+    $file = EnvFile::path($root, 'staging');
+    file_put_contents($file, str_repeat('a', 65 * 1024));
+
+    expect(fn () => EnvFile::load($file, 'staging'))
+        ->toThrow(RuntimeException::class, 'exceeds');
+});
+
+
+test('rejects invalid env json', function () {
+    $root = deployEnvWorkspace('staging', ['environment' => 'staging']);
+    $file = EnvFile::path($root, 'staging');
+    file_put_contents($file, '{');
+
+    expect(fn () => EnvFile::load($file, 'staging'))
+        ->toThrow(RuntimeException::class, 'invalid local env');
+});
+
+
+test('rejects an env that is not a json object', function () {
+    $root = deployEnvWorkspace('staging', ['environment' => 'staging']);
+    $file = EnvFile::path($root, 'staging');
+    file_put_contents($file, '"text"');
+
+    expect(fn () => EnvFile::load($file, 'staging'))
+        ->toThrow(RuntimeException::class, 'must be a JSON object');
+});
+
+
+test('rejects an unreadable env', function () {
+    if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+        $this->markTestSkipped('permission checks require a non-root user');
+    }
+
+    $root = deployEnvWorkspace('staging', ['environment' => 'staging']);
+    $file = EnvFile::path($root, 'staging');
+    chmod($file, 0000);
+
+    try {
+        expect(fn () => EnvFile::load($file, 'staging'))
+            ->toThrow(RuntimeException::class, 'not found');
+    } finally {
+        chmod($file, 0600);
+    }
+});
+
+
 test('hash is stable regardless of key order', function () {
     $left = ['environment' => 'staging', 'database' => ['host' => 'db', 'port' => 3306]];
     $right = ['database' => ['port' => 3306, 'host' => 'db'], 'environment' => 'staging'];
 
     expect(EnvFile::hash($left))->toBe(EnvFile::hash($right));
+});
+
+
+test('hash preserves list order', function () {
+    expect(EnvFile::hash(['features' => ['a', 'b']]))
+        ->toBe(EnvFile::hash(['features' => ['a', 'b']]))
+        ->not->toBe(EnvFile::hash(['features' => ['b', 'a']]));
 });
 
 

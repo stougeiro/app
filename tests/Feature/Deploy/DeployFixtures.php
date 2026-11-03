@@ -12,6 +12,7 @@ final class DeployFixtures
         ?string $identity = null,
         string $root = '/srv/app',
         string $webroot = '/srv/app/public_html',
+        bool $backupEnabled = true,
     ): Target {
         return new Target(
             $name,
@@ -24,7 +25,7 @@ final class DeployFixtures
             'https://staging.example.com',
             ['/uploads/***'],
             ['dir' => '755', 'file' => '644', 'storage' => '775'],
-            true,
+            $backupEnabled,
             3,
             false,
         );

@@ -25,10 +25,10 @@ function deployPlanWorkspace(): string
 }
 
 
-function deployPlanTarget(bool $requiresPlan = true): Target
+function deployPlanTarget(bool $requiresPlan = true, string $name = 'staging'): Target
 {
     return new Target(
-        'staging',
+        $name,
         'staging.example.com',
         'deploy',
         22,
@@ -177,3 +177,91 @@ test('target without requiresPlan ignores the plan', function () {
 
     expect($gate->read(deployPlanTarget(false)))->toBeNull();
 });
+
+
+test('source hash fails without the application directory', function () {
+    $root = sys_get_temp_dir() .'/deploy-plan-missing-'. bin2hex(random_bytes(6));
+    mkdir($root .'/public_html', 0700, true);
+    file_put_contents($root .'/composer.json', '{}');
+    file_put_contents($root .'/composer.lock', '{}');
+
+    expect(fn () => (new PlanGate($root))->sourceHash(deployPlanTarget()))
+        ->toThrow(RuntimeException::class, 'missing directory');
+});
+
+
+test('source hash fails without the public html directory', function () {
+    $root = deployPlanWorkspace();
+    unlink($root .'/public_html/index.php');
+    unlink($root .'/public_html/assets/app.css');
+    rmdir($root .'/public_html/assets');
+    rmdir($root .'/public_html');
+
+    expect(fn () => (new PlanGate($root))->sourceHash(deployPlanTarget()))
+        ->toThrow(RuntimeException::class, 'missing directory');
+});
+
+
+test('read rejects invalid plan json', function () {
+    $root = deployPlanWorkspace();
+    mkdir($root .'/.deploy/plans', 0700, true);
+    file_put_contents($root .'/.deploy/plans/staging.json', '{');
+
+    expect(fn () => (new PlanGate($root))->read(deployPlanTarget()))
+        ->toThrow(RuntimeException::class, 'invalid plan');
+});
+
+
+test('read rejects a plan that is not an object', function () {
+    $root = deployPlanWorkspace();
+    mkdir($root .'/.deploy/plans', 0700, true);
+    file_put_contents($root .'/.deploy/plans/staging.json', '"text"');
+
+    expect(fn () => (new PlanGate($root))->read(deployPlanTarget()))
+        ->toThrow(RuntimeException::class, 'expected object');
+});
+
+
+test('read rejects a plan with missing fields', function () {
+    $root = deployPlanWorkspace();
+    mkdir($root .'/.deploy/plans', 0700, true);
+    file_put_contents($root .'/.deploy/plans/staging.json', '{}');
+
+    expect(fn () => (new PlanGate($root))->read(deployPlanTarget()))
+        ->toThrow(RuntimeException::class, 'missing or incorrect fields');
+});
+
+
+test('rejects a plan that belongs to another target', function () {
+    $root = deployPlanWorkspace();
+    $gate = new PlanGate($root);
+    mkdir($root .'/.deploy/plans', 0700, true);
+    file_put_contents($root .'/.deploy/plans/production.json', json_encode([
+        'target' => 'staging',
+        'sourceHash' => 'hash',
+        'withEnv' => false,
+        'envHash' => null,
+        'createdAt' => '2026-11-03T00:00:00+00:00',
+    ], JSON_THROW_ON_ERROR));
+
+    $production = deployPlanTarget(true, 'production');
+
+    expect(fn () => $gate->assertPushAllowed($production, $gate->sourceHash($production), false, null))
+        ->toThrow(RuntimeException::class, 'another target');
+});
+
+
+test('rejects push with env when the plan was created without it', function () {
+    $root = deployPlanWorkspace();
+    $gate = new PlanGate($root);
+    $target = deployPlanTarget();
+    $source = $gate->sourceHash($target);
+
+    $gate->write($target, $source, false, null);
+
+    expect(fn () => $gate->assertPushAllowed($target, $source, true, 'abc'))
+        ->toThrow(RuntimeException::class, 'plan found without --with-env');
+});
+
+
+

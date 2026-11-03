@@ -22,6 +22,30 @@ function deployConfigFile(array $data): string
 }
 
 
+/**
+ * @param array<string, mixed> $overrides
+ * @return array<string, mixed>
+ */
+function deployConfigTarget(array $overrides = []): array
+{
+    return array_replace([
+        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy'],
+        'root' => '/srv/app',
+        'webroot' => '/srv/app/public_html',
+        'url' => 'https://app.example.com',
+    ], $overrides);
+}
+
+
+/**
+ * @param array<string, mixed> $target
+ */
+function deployConfigWithTarget(array $target): string
+{
+    return deployConfigFile(['targets' => ['staging' => $target]]);
+}
+
+
 test('loads defaults, explicit root and applies deep merge', function () {
     $config = Config::load(deployConfigFile([
         'defaults' => [
@@ -349,6 +373,181 @@ test('rejects a non-production target reusing the production root on the same se
             ],
         ],
     ])))->toThrow(RuntimeException::class, 'must not reuse production root');
+});
+
+
+test('rejects invalid config json', function () {
+    $file = tempnam(sys_get_temp_dir(), 'deploy-config-');
+    file_put_contents($file, '{');
+
+    expect(fn () => Config::load($file))
+        ->toThrow(RuntimeException::class, 'invalid config');
+});
+
+
+test('rejects a config that is not an object', function () {
+    $file = tempnam(sys_get_temp_dir(), 'deploy-config-');
+    file_put_contents($file, '"text"');
+
+    expect(fn () => Config::load($file))
+        ->toThrow(RuntimeException::class, 'must be a JSON object');
+});
+
+
+test('rejects a config without targets', function () {
+    expect(fn () => Config::load(deployConfigFile([])))
+        ->toThrow(RuntimeException::class, "'targets' must be a non-empty object");
+});
+
+
+test('rejects non-object defaults', function () {
+    expect(fn () => Config::load(deployConfigFile([
+        'defaults' => 'invalid',
+        'targets' => ['staging' => deployConfigTarget()],
+    ])))->toThrow(RuntimeException::class, "'defaults' must be an object");
+});
+
+
+test('rejects a target that is not an object', function () {
+    expect(fn () => Config::load(deployConfigFile([
+        'targets' => ['staging' => 'invalid'],
+    ])))->toThrow(RuntimeException::class, 'must be an object');
+});
+
+
+test('rejects a target without ssh', function () {
+    $target = deployConfigTarget();
+    unset($target['ssh']);
+
+    expect(fn () => Config::load(deployConfigWithTarget($target)))
+        ->toThrow(RuntimeException::class, "'ssh' must be an object");
+});
+
+
+test('rejects a target without a host', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'ssh' => ['user' => 'deploy'],
+    ]))))->toThrow(RuntimeException::class, "'host' must be a non-empty string");
+});
+
+
+test('rejects a target without a user', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'ssh' => ['host' => 'app.example.com'],
+    ]))))->toThrow(RuntimeException::class, "'user' must be a non-empty string");
+});
+
+
+test('rejects a non-integer ssh port', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'port' => '22'],
+    ]))))->toThrow(RuntimeException::class, "'port' must be an integer");
+});
+
+
+test('rejects an out of range ssh port', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'port' => 0],
+    ]))))->toThrow(RuntimeException::class, 'invalid SSH port');
+});
+
+
+test('rejects an invalid url', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'url' => 'not-a-url',
+    ]))))->toThrow(RuntimeException::class, "invalid 'url'");
+});
+
+
+test('rejects a non-http url scheme', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'url' => 'ftp://app.example.com',
+    ]))))->toThrow(RuntimeException::class, "requires an http or https 'url'");
+});
+
+
+test('rejects a preserve value that is not a list', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'preserve' => 'invalid',
+    ]))))->toThrow(RuntimeException::class, 'invalid list');
+});
+
+
+test('rejects a preserve item that is not a string', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'preserve' => [1],
+    ]))))->toThrow(RuntimeException::class, 'list item must be a string');
+});
+
+
+test('rejects non-object permissions', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'permissions' => 'invalid',
+    ]))))->toThrow(RuntimeException::class, "'permissions' must be an object");
+});
+
+
+test('rejects non-object backup', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'backup' => 'invalid',
+    ]))))->toThrow(RuntimeException::class, "'backup' must be an object");
+});
+
+
+test('rejects a non-boolean backup enabled flag', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'backup' => ['enabled' => 'yes'],
+    ]))))->toThrow(RuntimeException::class, "'backup.enabled' must be a boolean");
+});
+
+
+test('rejects a non-positive backup keep', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'backup' => ['keep' => 0],
+    ]))))->toThrow(RuntimeException::class, "'backup.keep' must be an integer >= 1");
+});
+
+
+test('rejects a root-level root', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'root' => '/',
+    ]))))->toThrow(RuntimeException::class, "requires an absolute 'root'");
+});
+
+
+test('rejects a root-level webroot', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'webroot' => '/',
+    ]))))->toThrow(RuntimeException::class, "requires an absolute 'webroot'");
+});
+
+
+test('rejects an empty ssh identity', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'identity' => ''],
+    ]))))->toThrow(RuntimeException::class, "'identity' must be a non-empty string");
+});
+
+
+test('allows the same production address on a different port', function () {
+    $config = Config::load(deployConfigFile([
+        'targets' => [
+            'staging' => [
+                'ssh' => ['host' => 'example.com', 'user' => 'deploy', 'port' => 2222],
+                'root' => '/srv/app',
+                'webroot' => '/srv/public_html',
+                'url' => 'https://example.com',
+            ],
+            'production' => [
+                'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
+                'root' => '/srv/app',
+                'webroot' => '/srv/public_html',
+                'url' => 'https://example.com',
+            ],
+        ],
+    ]));
+
+    expect($config->names())->toBe(['staging', 'production']);
 });
 
 

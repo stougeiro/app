@@ -18,16 +18,22 @@ final class FakeRequest implements RequestInterface
     /** @var array<string, mixed> */
     private array $attributes = [];
 
+    /** @var array<string, mixed> */
+    private array $input = [];
+
 
     /**
      * @param array<string, string> $headers
+     * @param array<string, mixed> $input
      */
     public function __construct(
         private string $method = 'GET',
         string $url = 'http://localhost/',
         array $headers = [],
+        array $input = [],
     ) {
         $this->uri = Uri::fromUrl($url);
+        $this->input = $input;
 
         foreach ($headers as $name => $value) {
             $this->headers[strtolower($name)] = $value;
@@ -84,12 +90,12 @@ final class FakeRequest implements RequestInterface
      */
     public function getParams(): array
     {
-        return [];
+        return $this->input;
     }
 
     public function param(string $key, mixed $default = null): mixed
     {
-        return $default;
+        return $this->input[$key] ?? $default;
     }
 
     public function getBody(): mixed
@@ -99,7 +105,7 @@ final class FakeRequest implements RequestInterface
 
     public function input(string $key, mixed $default = null): mixed
     {
-        return $default;
+        return $this->input[$key] ?? $default;
     }
 
     /**

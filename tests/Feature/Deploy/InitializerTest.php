@@ -63,6 +63,47 @@ test('rejects .deploy when it is not a directory', function () {
 });
 
 
+test('rejects a deploy config symlink', function () {
+    $root = deployInitializerRoot();
+    $target = $root .'/deploy/real.json';
+    file_put_contents($target, '{}');
+    symlink($target, $root .'/deploy.json');
+
+    expect(fn () => (new Initializer($root))->run())
+        ->toThrow(RuntimeException::class, 'cannot be a symlink');
+});
+
+
+test('rejects a deploy config that is not a regular file', function () {
+    $root = deployInitializerRoot();
+    mkdir($root .'/deploy.json');
+
+    expect(fn () => (new Initializer($root))->run())
+        ->toThrow(RuntimeException::class, 'not a regular file');
+});
+
+
+test('rejects a symlinked deploy subdirectory', function () {
+    $root = deployInitializerRoot();
+    mkdir($root .'/.deploy', 0700);
+    mkdir($root .'/elsewhere', 0700);
+    symlink($root .'/elsewhere', $root .'/.deploy/env');
+
+    expect(fn () => (new Initializer($root))->run())
+        ->toThrow(RuntimeException::class, 'refusing to use symlink');
+});
+
+
+test('rejects a deploy subdirectory that is a file', function () {
+    $root = deployInitializerRoot();
+    mkdir($root .'/.deploy', 0700);
+    file_put_contents($root .'/.deploy/plans', 'not a directory');
+
+    expect(fn () => (new Initializer($root))->run())
+        ->toThrow(RuntimeException::class, 'not a directory');
+});
+
+
 test('fails when the example config is missing', function () {
     $root = sys_get_temp_dir() .'/deploy-init-'. bin2hex(random_bytes(6));
     mkdir($root, 0700, true);

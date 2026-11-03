@@ -1,6 +1,7 @@
 <?php declare(strict_types=1);
 
 use App\Core\Security\Csrf;
+use Sourcerer\Http\Kernel;
 use Tests\Fixtures\ArraySession;
 use Tests\Fixtures\FakeRequest;
 
@@ -38,4 +39,53 @@ test('csrf token rotation invalidates the previous token', function () {
         ->and($csrf->validate(new FakeRequest('POST', 'http://localhost/', [
             'X-CSRF-Token' => $current,
         ])))->toBeTrue();
+});
+
+test('csrf factory builds a working instance from the container', function () {
+    Kernel::create()->handle(new FakeRequest('GET', 'http://localhost/'));
+
+    $csrf = Csrf::factory(container());
+    $token = $csrf->token();
+
+    expect($token)->toHaveLength(64)
+        ->and($csrf->validate(new FakeRequest('POST', 'http://localhost/', [
+            'X-CSRF-Token' => $token,
+        ])))->toBeTrue();
+});
+
+test('csrf validation fails without a session token', function () {
+    $csrf = new Csrf(new ArraySession());
+
+    expect($csrf->validate(new FakeRequest('POST', 'http://localhost/', [
+        'X-CSRF-Token' => 'anything',
+    ])))->toBeFalse();
+});
+
+test('csrf accepts the token from the request input', function () {
+    $csrf = new Csrf(new ArraySession());
+    $token = $csrf->token();
+
+    expect($csrf->validate(new FakeRequest('POST', 'http://localhost/', [], [
+        '_token' => $token,
+    ])))->toBeTrue();
+});
+
+test('csrf rejects non-string input tokens', function () {
+    $csrf = new Csrf(new ArraySession());
+    $csrf->token();
+
+    expect($csrf->validate(new FakeRequest('POST', 'http://localhost/', [], [
+        '_token' => ['invalid'],
+    ])))->toBeFalse();
+});
+
+test('csrf header takes precedence over input', function () {
+    $csrf = new Csrf(new ArraySession());
+    $token = $csrf->token();
+
+    expect($csrf->validate(new FakeRequest('POST', 'http://localhost/', [
+        'X-CSRF-Token' => 'invalid',
+    ], [
+        '_token' => $token,
+    ])))->toBeFalse();
 });

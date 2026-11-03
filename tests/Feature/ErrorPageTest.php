@@ -5,6 +5,10 @@ use Sourcerer\Contract\Error\HttpException;
 use Sourcerer\Http\Kernel;
 use Tests\Fixtures\FakeRequest;
 
+final class PlainErrorFixture extends RuntimeException
+{
+}
+
 beforeEach(function () {
     $this->kernel = Kernel::create();
 });
@@ -54,6 +58,92 @@ test('production error page has only status and message', function () {
         ->and($html)->toContain('Not Found')
         ->and($html)->toContain('/assets/error/page.css')
         ->and($html)->not->toContain('ERROR_ID');
+});
+
+test('production error page falls back for an unknown status', function () {
+    $this->kernel->handle(new FakeRequest('GET', 'http://localhost/'));
+
+    $renderer = container()->make(ViewErrorRenderer::class);
+    $html = $renderer->render(
+        new HttpException(418, 'Teapot'),
+        'ERROR_ID',
+        418,
+        false,
+        false,
+    );
+
+    expect($html)->toContain('Erro')
+        ->and($html)->toContain('Teapot');
+});
+
+test('production error page uses the generic message for unknown server errors', function () {
+    $this->kernel->handle(new FakeRequest('GET', 'http://localhost/'));
+
+    $renderer = container()->make(ViewErrorRenderer::class);
+    $html = $renderer->render(
+        new HttpException(599, 'Server failure'),
+        'ERROR_ID',
+        599,
+        false,
+        false,
+    );
+
+    expect($html)->toContain('Erro')
+        ->and($html)->toContain('Ocorreu um erro inesperado.');
+});
+
+test('production error page accepts a title and message override', function () {
+    $this->kernel->handle(new FakeRequest('GET', 'http://localhost/'));
+
+    $renderer = container()->make(ViewErrorRenderer::class);
+    $html = $renderer->render(
+        new HttpException(403, 'Forbidden'),
+        'ERROR_ID',
+        403,
+        false,
+        false,
+        ['title' => 'Custom Title', 'message' => 'Custom message'],
+    );
+
+    expect($html)->toContain('Custom Title')
+        ->and($html)->toContain('Custom message');
+});
+
+test('development error page handles a class without a namespace', function () {
+    $this->kernel->handle(new FakeRequest('GET', 'http://localhost/'));
+
+    $renderer = container()->make(ViewErrorRenderer::class);
+    $html = $renderer->render(
+        new PlainErrorFixture('Plain failure'),
+        'ERROR_ID',
+        500,
+        true,
+        false,
+    );
+
+    expect($html)->toContain('PlainErrorFixture')
+        ->and($html)->toContain('Plain failure');
+});
+
+test('development error page snippets a file shorter than the pad', function () {
+    $this->kernel->handle(new FakeRequest('GET', 'http://localhost/'));
+
+    $file = tempnam(sys_get_temp_dir(), 'tiny_error_') .'.php';
+    file_put_contents($file, "<?php\nthrow new RuntimeException('tiny failure');\n");
+
+    try {
+        try {
+            require $file;
+        } catch (RuntimeException $error) {
+            $renderer = container()->make(ViewErrorRenderer::class);
+            $html = $renderer->render($error, 'ERROR_ID', 500, true, false);
+        }
+
+        expect($html)->toContain('Code Snippet')
+            ->and($html)->toContain('tiny failure');
+    } finally {
+        @unlink($file);
+    }
 });
 
 test('error page keeps json negotiation', function () {

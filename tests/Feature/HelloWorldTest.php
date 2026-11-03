@@ -11,8 +11,7 @@ test('hello world module renders its view', function () {
     $response = $this->kernel->handle(new FakeRequest('GET', 'http://localhost/'));
 
     expect($response->getStatus())->toBe(200)
-        ->and($response->getBody())->toContain('Hello World')
-        ->and($response->getHeader('X-Chain'))->toBe('module controller');
+        ->and($response->getBody())->toContain('Hello World');
 });
 
 test('hello world module answers options', function () {

@@ -41,12 +41,26 @@ function deployDeployerShell(
     ?string $remoteEnv = null,
     string $snapshotList = '',
     bool $hasRsync = true,
+    string $rootStatus = '200',
+    string $missingStatus = '404',
+    string $rootBody = '',
+    ?string $manifest = null,
+    bool $failComposer = false,
+    bool $composerNoVendor = false,
+    bool $failEnvHash = false,
 ): FakeShell {
     return new FakeShell(function (array $command, ?string $stdin = null, ?string $cwd = null) use (
         $failWebrootRsync,
         $remoteEnv,
         $snapshotList,
         $hasRsync,
+        $rootStatus,
+        $missingStatus,
+        $rootBody,
+        $manifest,
+        $failComposer,
+        $composerNoVendor,
+        $failEnvHash,
     ): ShellResult {
         $binary = $command[0];
         $remote = $command[count($command) - 1];
@@ -75,6 +89,11 @@ function deployDeployerShell(
 
             if (str_contains($remote, 'manifest.json'))
             {
+                if ($manifest !== null)
+                {
+                    return new ShellResult(0, $manifest, '');
+                }
+
                 return new ShellResult(0, json_encode([
                     'target' => 'staging',
                     'root' => '/srv/app',
@@ -84,7 +103,9 @@ function deployDeployerShell(
 
             if (str_contains($remote, 'sha256sum'))
             {
-                return new ShellResult(0, hash('sha256', (string) $stdin) .'  /srv/app/application/env.json', '');
+                $hash = $failEnvHash ? str_repeat('0', 64) : hash('sha256', (string) $stdin);
+
+                return new ShellResult(0, $hash .'  /srv/app/application/env.json', '');
             }
 
             if (str_contains($remote, 'env.json'))
@@ -100,6 +121,16 @@ function deployDeployerShell(
             if ($cwd === null)
             {
                 return new ShellResult(1, '', 'missing cwd');
+            }
+
+            if ($failComposer)
+            {
+                return new ShellResult(1, '', 'composer boom');
+            }
+
+            if ($composerNoVendor)
+            {
+                return new ShellResult(0, '', '');
             }
 
             mkdir($cwd .'/vendor/composer', 0700, true);
@@ -125,8 +156,14 @@ function deployDeployerShell(
         if ($binary === 'curl')
         {
             $url = $command[count($command) - 1];
+            $status = str_ends_with($url, '/missing') ? $missingStatus : $rootStatus;
 
-            return new ShellResult(0, str_ends_with($url, '/missing') ? '404' : '200', '');
+            if (in_array('-o', $command, true))
+            {
+                return new ShellResult(0, $status, '');
+            }
+
+            return new ShellResult(0, $rootBody, '');
         }
 
         return new ShellResult(0, '', '');
@@ -201,6 +238,164 @@ test('push transfers build and overrides and writes env', function () {
         ->and($calls)->toContain('.maintenance')
         ->and($calls)->toContain('sha256sum')
         ->and($calls)->toContain('--exclude=/uploads/***');
+});
+
+
+test('check warns when a nested webroot lacks an override entrypoint', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell(remoteEnv: '{"environment":"staging"}');
+    $deployer = new Deployer(
+        $root,
+        DeployFixtures::target(root: '/srv/app/code', webroot: '/srv/app/public_html'),
+        $shell,
+    );
+
+    $deployer->check();
+
+    expect($shell->calls)->not->toBeEmpty();
+});
+
+
+test('plan previews the fallback when rsync is unavailable', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell(hasRsync: false);
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+
+    $deployer->plan(false);
+
+    expect(deployDeployerCalls($shell))->not->toContain('--dry-run');
+});
+
+
+test('push rejects a remote env for another environment', function () {
+    $root = deployDeployerWorkspace();
+    $deployer = new Deployer(
+        $root,
+        DeployFixtures::target(),
+        deployDeployerShell(remoteEnv: '{"environment":"production"}'),
+    );
+
+    expect(fn () => $deployer->push(true))
+        ->toThrow(RuntimeException::class, "env declares 'production'");
+});
+
+
+test('push fails when composer does not create the vendor directory', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell(composerNoVendor: true);
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+
+    expect(fn () => $deployer->push(true))
+        ->toThrow(RuntimeException::class, 'did not generate the vendor directory');
+});
+
+
+test('push fails when the remote env hash does not match after write', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell(failEnvHash: true);
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+
+    expect(fn () => $deployer->push(true))
+        ->toThrow(RuntimeException::class, 'does not match after write');
+});
+
+
+test('push fails when composer cannot build the vendor directory', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell(failComposer: true);
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+
+    expect(fn () => $deployer->push(true))
+        ->toThrow(RuntimeException::class, 'composer failed');
+});
+
+
+test('push fails when the local env is missing', function () {
+    $root = deployDeployerWorkspace();
+    unlink($root .'/.deploy/env/staging.json');
+    $deployer = new Deployer($root, DeployFixtures::target(), deployDeployerShell());
+
+    expect(fn () => $deployer->push(true))
+        ->toThrow(RuntimeException::class, 'local env not found');
+});
+
+
+test('push rejects invalid remote env json', function () {
+    $root = deployDeployerWorkspace();
+    $deployer = new Deployer($root, DeployFixtures::target(), deployDeployerShell(remoteEnv: '{'));
+
+    expect(fn () => $deployer->push(true))
+        ->toThrow(RuntimeException::class, 'invalid remote env');
+});
+
+
+test('push rejects a remote env that is not an object', function () {
+    $root = deployDeployerWorkspace();
+    $deployer = new Deployer($root, DeployFixtures::target(), deployDeployerShell(remoteEnv: '"text"'));
+
+    expect(fn () => $deployer->push(true))
+        ->toThrow(RuntimeException::class, 'must be a JSON object');
+});
+
+
+test('push keeps maintenance active when backups are disabled and transfer fails', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell(failWebrootRsync: true);
+    $deployer = new Deployer($root, DeployFixtures::target(backupEnabled: false), $shell);
+
+    expect(fn () => $deployer->push(true))
+        ->toThrow(RuntimeException::class, 'rsync boom');
+
+    expect(deployDeployerCalls($shell))
+        ->not->toContain('root.tar.gz')
+        ->not->toContain('manifest.json');
+});
+
+
+test('push skips the snapshot when backups are disabled', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell();
+    $deployer = new Deployer($root, DeployFixtures::target(backupEnabled: false), $shell);
+
+    $deployer->push(true);
+
+    expect(deployDeployerCalls($shell))
+        ->not->toContain('root.tar.gz')
+        ->not->toContain('manifest.json');
+});
+
+
+test('push fails when the root url does not return 200', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell(rootStatus: '500');
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+
+    expect(fn () => $deployer->push(true))
+        ->toThrow(RuntimeException::class, 'returned 500');
+
+    expect(deployDeployerCalls($shell))
+        ->toContain('manifest.json')
+        ->toContain('root.tar.gz');
+});
+
+
+test('push fails when the response contains a fatal error', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell(rootBody: 'Fatal error: boom');
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+
+    expect(fn () => $deployer->push(true))
+        ->toThrow(RuntimeException::class, 'fatal error');
+});
+
+
+test('push fails when the missing url does not return 404', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell(missingStatus: '200');
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+
+    expect(fn () => $deployer->push(true))
+        ->toThrow(RuntimeException::class, 'did not return 404');
 });
 
 
@@ -284,4 +479,76 @@ test('rollback restores the latest snapshot', function () {
         ->toContain('ls -1dt')
         ->toContain('manifest.json')
         ->toContain('root.tar.gz');
+});
+
+
+test('rollback rejects a snapshot without a manifest', function () {
+    $root = deployDeployerWorkspace();
+    $deployer = new Deployer(
+        $root,
+        DeployFixtures::target(),
+        deployDeployerShell(
+            remoteEnv: '{"environment":"staging"}',
+            snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
+            manifest: '__MISSING__',
+        ),
+    );
+
+    expect(fn () => $deployer->rollback(null))
+        ->toThrow(RuntimeException::class, 'snapshot manifest not found');
+});
+
+
+test('rollback rejects an invalid snapshot manifest', function () {
+    $root = deployDeployerWorkspace();
+    $deployer = new Deployer(
+        $root,
+        DeployFixtures::target(),
+        deployDeployerShell(
+            remoteEnv: '{"environment":"staging"}',
+            snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
+            manifest: '{',
+        ),
+    );
+
+    expect(fn () => $deployer->rollback(null))
+        ->toThrow(RuntimeException::class, 'invalid snapshot manifest');
+});
+
+
+test('rollback rejects a manifest that is not an object', function () {
+    $root = deployDeployerWorkspace();
+    $deployer = new Deployer(
+        $root,
+        DeployFixtures::target(),
+        deployDeployerShell(
+            remoteEnv: '{"environment":"staging"}',
+            snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
+            manifest: '123',
+        ),
+    );
+
+    expect(fn () => $deployer->rollback(null))
+        ->toThrow(RuntimeException::class, 'expected object');
+});
+
+
+test('rollback rejects a snapshot for another layout', function () {
+    $root = deployDeployerWorkspace();
+    $deployer = new Deployer(
+        $root,
+        DeployFixtures::target(),
+        deployDeployerShell(
+            remoteEnv: '{"environment":"staging"}',
+            snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
+            manifest: json_encode([
+                'target' => 'staging',
+                'root' => '/srv/other',
+                'webroot' => '/srv/other/public_html',
+            ], JSON_THROW_ON_ERROR),
+        ),
+    );
+
+    expect(fn () => $deployer->rollback(null))
+        ->toThrow(RuntimeException::class, 'layout does not match');
 });

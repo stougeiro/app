@@ -3,6 +3,7 @@
 use App\Core\Security\Csrf;
 use App\Core\Security\Middleware\CsrfMiddleware;
 use Sourcerer\Contract\Error\HttpException;
+use Sourcerer\Http\Kernel;
 use Tests\Fixtures\ArraySession;
 use Tests\Fixtures\FakeRequest;
 
@@ -26,6 +27,48 @@ test('csrf middleware rejects an unsafe request without a token', function () {
         new \STDW\Http\Response(),
         static fn ($request, $response) => $response,
     ))->toThrow(HttpException::class);
+});
+
+test('csrf middleware factory builds a working instance', function () {
+    Kernel::create()->handle(new FakeRequest('GET', 'http://localhost/'));
+
+    $middleware = CsrfMiddleware::factory(container());
+
+    $response = $middleware->process(
+        new FakeRequest('GET', 'http://localhost/'),
+        new \STDW\Http\Response(),
+        static fn ($request, $response) => $response,
+    );
+
+    expect($response->getStatus())->toBe(200);
+});
+
+test('csrf middleware treats lowercase safe methods as safe', function () {
+    $middleware = new CsrfMiddleware(new Csrf(new ArraySession()));
+
+    foreach (['get', 'head', 'options'] as $method) {
+        $response = $middleware->process(
+            new FakeRequest($method, 'http://localhost/'),
+            new \STDW\Http\Response(),
+            static fn ($request, $response) => $response,
+        );
+
+        expect($response->getStatus())->toBe(200);
+    }
+});
+
+test('csrf middleware validates lowercase unsafe methods', function () {
+    $csrf = new Csrf(new ArraySession());
+    $token = $csrf->token();
+    $middleware = new CsrfMiddleware($csrf);
+
+    $response = $middleware->process(
+        new FakeRequest('post', 'http://localhost/', ['X-CSRF-Token' => $token]),
+        new \STDW\Http\Response(),
+        static fn ($request, $response) => $response->withBody('ok'),
+    );
+
+    expect($response->getBody())->toBe('ok');
 });
 
 test('csrf middleware accepts an unsafe request with a valid token', function () {
