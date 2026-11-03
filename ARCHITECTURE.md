@@ -73,6 +73,9 @@ Nothing under `application/` should be exposed by the web server.
 | Public CSS/assets | `public_html/assets` |
 | Application configuration | `application/config` |
 | Tests | `tests` |
+| Deploy tool source | `tools/deploy` |
+| Deploy shim | `./deploy` |
+| Deploy configuration/state | `deploy.json`, `.deploy` (local only) |
 
 Prefer the smallest location that matches the responsibility. Do not put
 business rules in providers, and do not put runtime services in `public_html`.
@@ -324,6 +327,60 @@ vendor/        → Composer dependencies outside the web root
 
 `vendor/` is generated outside the server and copied with the application. The
 shared host does not need Composer at runtime.
+
+The optional `./deploy` tool automates this transfer with per-target layout,
+maintenance mode, verification, remote backups and rollback. The manual flow
+remains valid. See [DEPLOY.md](DEPLOY.md).
+
+## Deploy tooling
+
+Deployment is repository tooling, not an application layer. It stays outside the
+runtime dependency direction:
+
+```text
+./deploy (shim)
+    ↓
+tools/deploy/console.php
+    ↓
+tools/deploy/src
+```
+
+The rules are:
+
+- treat `application/*` and `public_html/*` as the normal change scope;
+- treat `./deploy` and `tools/deploy` as out of scope for application changes;
+- `./deploy` is only the executable shim;
+- the tool source lives in `tools/deploy`;
+- the tool must not be required by `application/`, providers or modules;
+- the tool must not be uploaded to the server;
+- `deploy.json` and `.deploy/` are local configuration/state and are ignored by
+  Git;
+- secrets, environment values, plans and keys stay outside version control.
+
+The tool deploys only:
+
+```text
+application/   → target root
+public_html/   → target webroot
+vendor/        → target root
+```
+
+Each target declares `root`, `webroot`, `url` and SSH settings in `deploy.json`.
+The deploy tool validates paths, production collisions, environment files,
+plans, maintenance mode, remote snapshots and rollback.
+
+### Change scope
+
+The normal application change scope is `application/*` and `public_html/*`.
+
+`./deploy` and `tools/deploy` are outside that scope. They are consumer
+tooling: use them to deploy, but do not modify them unless the task explicitly
+requests a deploy-tool change and the user grants permission.
+
+Application work must not refactor, move, rename or opportunistically "fix"
+deploy tooling.
+
+See [DEPLOY.md](DEPLOY.md) for configuration and command reference.
 
 ## Anti-patterns
 

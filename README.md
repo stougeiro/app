@@ -19,8 +19,9 @@ The goal is an explicit, inspectable application with no hidden module discovery
 no build step required at runtime, and behavior that is predictable on ordinary
 shared servers.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and [AGENTS.md](AGENTS.md)
-for the operational rules used by agents and contributors.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries, [DEPLOY.md](DEPLOY.md)
+for the deployment tool and [AGENTS.md](AGENTS.md) for the operational rules
+used by agents and contributors.
 
 ## ✨ Features
 
@@ -37,6 +38,8 @@ for the operational rules used by agents and contributors.
   middleware under `core/Security`.
 - **Docker development**: PHP 8.2 + Apache with the vendor directory kept inside
   the image.
+- **Deploy CLI**: repeatable SSH deploys with per-target layout, overrides,
+  maintenance mode, remote backups, rollback and plan gating.
 - **Quality tooling**: PHPStan Level 9 and a Pest suite.
 
 ---
@@ -81,6 +84,10 @@ composer install --no-dev --optimize-autoloader
 │   ├── database/     database-facing code
 │   ├── provider/     service providers
 │   └── storage/      cache, logs, sessions and temporary files
+├── deploy            deploy shim
+├── tools/deploy/     deploy tool source
+├── deploy.json       local deploy configuration (not versioned)
+├── .deploy/          local deploy state and secrets (not versioned)
 ├── public_html/      document root
 ├── tests/            Pest tests
 ├── vendor/           Composer dependencies
@@ -180,9 +187,29 @@ Docker environment.
 
 ---
 
+## 🚢 Deploy
+
+The repository includes an optional deploy CLI for repeatable SSH deployments.
+It keeps the application runtime independent from deployment concerns.
+
+```bash
+./deploy init
+./deploy check --target=staging
+./deploy plan --target=staging
+./deploy push --target=staging
+```
+
+Targets are declared in `deploy.json`, with separate `root` and `webroot` paths,
+per-target overrides, maintenance mode, remote backups and rollback.
+
+See [DEPLOY.md](DEPLOY.md) for configuration, commands and operational details.
+
+---
+
 ## 🚀 Shared hosting
 
 The production deployment is a normal PHP application. Docker is not required.
+The manual upload flow below remains valid when the deploy CLI is not used.
 
 ```text
 application/   -> application directory outside the web root
@@ -211,10 +238,15 @@ From the repository root:
 composer validate
 composer stan
 composer pest
+composer cover:deploy
 ```
 
 The test suite covers the application bootstrap, module rendering, error pages,
-log classification and daily PHP error log configuration.
+log classification, daily PHP error log configuration, security primitives,
+maintenance/fallback entrypoint behavior and the deploy tool.
+
+Deploy coverage is measured separately so the application coverage scope stays
+unchanged.
 
 ---
 
