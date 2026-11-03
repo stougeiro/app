@@ -7,8 +7,8 @@ function deployInitializerRoot(): string
 {
     $root = sys_get_temp_dir() .'/deploy-init-'. bin2hex(random_bytes(6));
 
-    mkdir($root .'/deploy', 0700, true);
-    file_put_contents($root .'/deploy/deploy.example.json', '{"targets":{}}');
+    mkdir($root .'/tools/deploy', 0700, true);
+    file_put_contents($root .'/tools/deploy/deploy.example.json', '{"targets":{}}');
 
     return $root;
 }
@@ -65,7 +65,7 @@ test('rejects .deploy when it is not a directory', function () {
 
 test('rejects a deploy config symlink', function () {
     $root = deployInitializerRoot();
-    $target = $root .'/deploy/real.json';
+    $target = $root .'/tools/deploy/real.json';
     file_put_contents($target, '{}');
     symlink($target, $root .'/deploy.json');
 

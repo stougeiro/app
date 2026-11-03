@@ -7,7 +7,7 @@ use RuntimeException;
 use Throwable;
 
 
-$root = dirname(__DIR__);
+$root = dirname(__DIR__, 2);
 
 foreach ([
     'ShellResult',

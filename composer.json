@@ -58,7 +58,7 @@
     "autoload-dev": {
         "psr-4": {
             "Tests\\": "tests/",
-            "Deploy\\": "deploy/src/"
+            "Deploy\\": "tools/deploy/src/"
         }
     },
     "require-dev": {
@@ -70,7 +70,7 @@
         "pest": "vendor/bin/pest",
         "cover": "vendor/bin/pest --coverage",
         "cover:app": "vendor/bin/pest --coverage --coverage-filter=application",
-        "cover:deploy": "vendor/bin/pest tests/Feature/Deploy --coverage --coverage-filter=deploy/src"
+        "cover:deploy": "vendor/bin/pest tests/Feature/Deploy --coverage --coverage-filter=tools/deploy/src"
     },
     "config": {
         "allow-plugins": {

@@ -7,8 +7,8 @@ parameters:
         - application/database
         - application/provider
         - public_html
-        - deploy/src
-        - deploy/console.php
+        - tools/deploy/src
+        - tools/deploy/console.php
     excludePaths:
         - application/modules/*/View/*
     bootstrapFiles:

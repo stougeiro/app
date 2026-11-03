@@ -17,7 +17,7 @@ class Initializer
     {
         $base = rtrim($this->projectRoot, '/') .'/.deploy';
         $config = $this->projectRoot .'/deploy.json';
-        $example = $this->projectRoot .'/deploy/deploy.example.json';
+        $example = $this->projectRoot .'/tools/deploy/deploy.example.json';
 
         if (is_link($config))
         {
