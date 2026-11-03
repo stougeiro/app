@@ -69,6 +69,7 @@
         "stan": "vendor/bin/phpstan",
         "pest": "vendor/bin/pest",
         "cover": "vendor/bin/pest --coverage",
+        "cover:app": "vendor/bin/pest --coverage --coverage-filter=application",
         "cover:deploy": "vendor/bin/pest tests/Feature/Deploy --coverage --coverage-filter=deploy/src"
     },
     "config": {
