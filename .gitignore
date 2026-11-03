@@ -53,3 +53,7 @@ coverage/
 
 # Ambiente
 /application/env.json
+
+# Deploy
+/deploy.json
+/.deploy/
