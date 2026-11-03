@@ -6,8 +6,10 @@
 .vscode
 .opencode
 public_html
-project/tests
-project/storage/*
+tests
+phpunit.xml
+phpstan.neon
+application/storage/*
 *.log
 .phpunit.result.cache
 .phpunit.cache

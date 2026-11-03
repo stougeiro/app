@@ -8,7 +8,7 @@ use STDW\Http\Request;
 
 try
 {
-    require_once __DIR__ . '/../project/bootstrap/app.php';
+    require_once __DIR__ . '/../application/bootstrap/app.php';
 
     $kernel = Kernel::create();
 

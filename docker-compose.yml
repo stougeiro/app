@@ -8,13 +8,6 @@ services:
     restart: unless-stopped
     volumes:
       - ./public_html:/var/www/html:ro
-      - ./project/app:/var/www/project/app:ro
-      - ./project/bootstrap:/var/www/project/bootstrap:ro
-      - ./project/config:/var/www/project/config:ro
-      - ./project/core:/var/www/project/core:ro
-      - ./project/database:/var/www/project/database:ro
-      - ./project/provider:/var/www/project/provider:ro
-      - ./project/env.json:/var/www/project/env.json:ro
-      - ./project/storage:/var/www/project/storage
+      - ./application:/var/www/application
       - ./docker/php/php.ini:/usr/local/etc/php/conf.d/zz-shared.ini:ro
       - ./docker/apache/000-default.conf:/etc/apache2/sites-available/000-default.conf:ro

@@ -24,7 +24,7 @@ for the operational rules used by agents and contributors.
 
 ## ✨ Features
 
-- **Shared-hosting layout**: application in `project/`, web root in `public_html/`.
+- **Shared-hosting layout**: application in `application/`, web root in `public_html/`.
 - **Explicit wiring**: providers in `provider/`, modules in `app/`.
 - **Module example**: HelloWorld controller, view and middlewares.
 - **Error handling**: separate development and production error pages.
@@ -49,16 +49,16 @@ for the operational rules used by agents and contributors.
 - `ext-json`.
 - `ext-pdo_sqlite` for the default database configuration.
 - Apache with `mod_rewrite` for the front controller.
-- A writable `project/storage` directory.
+- A writable `application/storage` directory.
 
 ### Local setup
 
 ```bash
 git clone https://github.com/stougeiro/app.git
-cd app/project
+cd app
 
 composer install
-cp env-example.json env.json
+cp application/env-example.json application/env.json
 ```
 
 For production dependencies, generate the vendor externally:
@@ -72,20 +72,22 @@ composer install --no-dev --optimize-autoloader
 ## 📁 Layout
 
 ```text
-app/
-├── project/
-│   ├── app/          application modules
+.
+├── application/
+│   ├── modules/      application modules
 │   ├── bootstrap/    runtime bootstrap
 │   ├── config/       application configuration
 │   ├── core/         app-level foundations
+│   ├── database/     database-facing code
 │   ├── provider/     service providers
-│   ├── storage/      cache, logs, sessions and temporary files
-│   ├── tests/        Pest tests
-│   └── vendor/       Composer dependencies
-│
-└── public_html/      document root
-    ├── .htaccess
-    └── index.php
+│   └── storage/      cache, logs, sessions and temporary files
+├── public_html/      document root
+├── tests/            Pest tests
+├── vendor/           Composer dependencies
+├── composer.json
+├── composer.lock
+├── phpunit.xml
+└── phpstan.neon
 ```
 
 The application must never be exposed through the web server. The document root
@@ -108,7 +110,7 @@ Use `production` on a deployed server.
 Providers and modules are declared explicitly:
 
 ```php
-// project/config/app.php
+// application/config/app.php
 return [
     'providers' => [
         // ...
@@ -120,7 +122,7 @@ return [
 ];
 ```
 
-The default database configuration uses SQLite in `project/storage`.
+The default database configuration uses SQLite in `application/storage`.
 
 ---
 
@@ -129,7 +131,7 @@ The default database configuration uses SQLite in `project/storage`.
 Logs are written under:
 
 ```text
-project/storage/log/
+application/storage/log/
 ```
 
 Files are separated by purpose and date:
@@ -159,7 +161,7 @@ Docker is a development convenience, not a production requirement.
 
 ```bash
 # from the repository root
-cd project && composer install && cd ..
+composer install
 docker compose up -d
 ```
 
@@ -170,10 +172,10 @@ http://localhost/
 ```
 
 The development container uses PHP 8.2 + Apache, serves `public_html` as the
-document root, keeps `vendor/` inside the image and bind-mounts `project/storage`
-for real-time log inspection.
+document root, keeps `vendor/` inside the image and bind-mounts `application/`
+for real-time code and log inspection.
 
-Apache access and error logs are also written under `project/storage/log` in the
+Apache access and error logs are also written under `application/storage/log` in the
 Docker environment.
 
 ---
@@ -183,26 +185,27 @@ Docker environment.
 The production deployment is a normal PHP application. Docker is not required.
 
 ```text
-project/       -> application directory outside the web root
+application/   -> application directory outside the web root
 public_html/   -> web root
+vendor/        -> Composer dependencies outside the web root
 ```
 
 Steps:
 
 1. install dependencies externally with `--no-dev`;
-2. upload `project/` and `public_html/` to the server;
-3. create `project/env.json`;
-4. make `project/storage` writable by the application user;
+2. upload `application/`, `public_html/` and `vendor/` to the server;
+3. create `application/env.json`;
+4. make `application/storage` writable by the application user;
 5. point the document root to `public_html`.
 
 On shared hosting, Apache access/error logs and HTTP-level rate limiting usually
-belong to the provider. Application logs remain under `project/storage/log`.
+belong to the provider. Application logs remain under `application/storage/log`.
 
 ---
 
 ## 🧪 Development
 
-From `project/`:
+From the repository root:
 
 ```bash
 composer validate

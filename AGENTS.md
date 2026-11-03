@@ -8,10 +8,10 @@ Read `ARCHITECTURE.md` before changing code.
 - This is a PHP 8.2 application for shared hosting, using Apache/FPM or mod_php.
 - Keep reusable contracts in `stougeiro/base-contract`.
 - Keep the FPM runtime in `stougeiro/base`.
-- Keep app foundations and cross-cutting behavior in `project/core`.
-- Keep application-local modules in `project/app`.
-- Keep service wiring in `project/provider`.
-- Keep global policy in `project/config`.
+- Keep app foundations and cross-cutting behavior in `application/core`.
+- Keep application-local modules in `application/modules`.
+- Keep service wiring in `application/provider`.
+- Keep global policy in `application/config`.
 - Keep only the entrypoint and public assets in `public_html`.
 
 ## Where to put code
@@ -20,28 +20,28 @@ Read `ARCHITECTURE.md` before changing code.
 |---|---|
 | Contract reusable across runtimes/apps | `stougeiro/base-contract` |
 | Runtime/foundation for FPM | `stougeiro/base` |
-| App-wide foundation or behavior | `project/core` |
-| Security service or middleware | `project/core/Security` |
-| DI wiring | `project/provider` |
-| Local feature/module | `project/app/<Module>` |
-| Global middleware | `project/config/middlewares.php` |
-| Module middleware | `project/app/<Module>/Config/middlewares.php` |
-| Routes | `project/app/<Module>/Config/routes.php` |
-| Controller | `project/app/<Module>/Controller` |
-| View | `project/app/<Module>/View` |
+| App-wide foundation or behavior | `application/core` |
+| Security service or middleware | `application/core/Security` |
+| DI wiring | `application/provider` |
+| Local feature/module | `application/modules/<Module>` |
+| Global middleware | `application/config/middlewares.php` |
+| Module middleware | `application/modules/<Module>/Config/middlewares.php` |
+| Routes | `application/modules/<Module>/Config/routes.php` |
+| Controller | `application/modules/<Module>/Controller` |
+| View | `application/modules/<Module>/View` |
 | Public CSS/assets | `public_html/assets` |
-| Configuration | `project/config` |
-| Tests | `project/tests` |
+| Configuration | `application/config` |
+| Tests | `tests` |
 
 ## Module rules
 
 ### Local module
 
-- Lives in `project/app/<Module>`.
+- Lives in `application/modules/<Module>`.
 - Extends `App\Core\Module\ModuleProviderAbstract`.
 - Controllers extend `App\Core\Http\ControllerAbstract`.
 - Registers routes, middlewares and views through its provider.
-- Is listed explicitly in `project/config/app.php`.
+- Is listed explicitly in `application/config/app.php`.
 - May use `App\Core`.
 
 ### Installed module
@@ -50,19 +50,19 @@ Read `ARCHITECTURE.md` before changing code.
 - Depends only on `stougeiro/base-contract`.
 - Must not depend on `App\Core`, `stougeiro/base`, or this application.
 - The app only installs it via Composer and registers its provider in
-  `project/config/app.php`.
+  `application/config/app.php`.
 - Do not document or generate installable module packages inside this app.
 
 ## HTTP and middleware
 
 - Global middleware runs for every request and belongs in
-  `project/config/middlewares.php`.
+  `application/config/middlewares.php`.
 - Module/controller middleware belongs to the module config.
 - `OPTIONS` is handled by the controller base. Do not implement it manually.
 - `App\Core\Security\Middleware\SecurityHeadersMiddleware` is opt-in. Do not
   enable it unless the task explicitly asks.
 - `CsrfMiddleware` and `RateLimitMiddleware` are opt-in per module/controller.
-  Defaults live in `project/config/security.php`.
+  Defaults live in `application/config/security.php`.
 - CSP uses `style-src 'self'`. Do not add inline `<style>` or inline styles.
   Put public CSS under `public_html/assets`.
 - Auth is not part of the current core. Do not add auth middleware or auth
@@ -76,22 +76,22 @@ Read `ARCHITECTURE.md` before changing code.
 - Do not add a second log channel for the same concern.
 - Do not implement log retention in the application.
 - `Fallback` is independent and intentionally outside application middleware.
-- Error views belong in `project/app/Error/View`; error rendering policy belongs
-  in `project/core/Error`.
+- Error views belong in `application/modules/Error/View`; error rendering policy belongs
+  in `application/core/Error`.
 
 ## Providers
 
 - Providers only wire services and lifecycle.
 - Do not put routes, controllers, views or business rules in providers.
-- Register providers explicitly in `project/config/app.php`.
+- Register providers explicitly in `application/config/app.php`.
 - Keep provider order intentional when one provider depends on another.
 
 ## Dependencies
 
-- Add runtime dependencies to `project/composer.json`.
+- Add runtime dependencies to `composer.json`.
 - Add development dependencies to `require-dev`.
-- Commit `project/composer.lock`.
-- Do not commit `project/vendor`.
+- Commit `composer.lock`.
+- Do not commit `vendor`.
 - Production vendor is generated externally with:
 
 ```bash
@@ -100,7 +100,7 @@ composer install --no-dev --optimize-autoloader
 
 ## Verification
 
-From `project/`:
+From the repository root:
 
 ```bash
 composer validate --strict
@@ -125,7 +125,7 @@ Docker-only paths or Apache vhost edits.
 - Put business logic in providers.
 - Make `core` depend on `app`.
 - Make installable modules depend on `App\Core`.
-- Expose `project/` through the web server.
+- Expose `application/` through the web server.
 - Add inline CSS or scripts under the current CSP.
 - Treat Docker as a production requirement.
 - Add abstractions without a real second use case.

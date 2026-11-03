@@ -7,9 +7,9 @@
     </testsuites>
     <source>
         <include>
-            <directory>app</directory>
-            <directory>core</directory>
-            <directory>provider</directory>
+            <directory>application/modules</directory>
+            <directory>application/core</directory>
+            <directory>application/provider</directory>
         </include>
     </source>
 </phpunit>

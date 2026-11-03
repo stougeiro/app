@@ -16,7 +16,7 @@ bootstrap / config
     ↓
 provider
     ↓
-app modules → core
+application/modules → application/core
     ↓
 stougeiro/base → stougeiro/base-contract
 ```
@@ -24,27 +24,28 @@ stougeiro/base → stougeiro/base-contract
 The rules are:
 
 - `public_html` is the entrypoint and public asset directory only;
-- `core` contains application foundations and cross-cutting behavior;
-- `app` contains application-local modules;
-- `core` must not depend on `app`;
-- `app` may depend on `core`;
-- `provider` wires external services and may use `core`;
+- `application/core` contains application foundations and cross-cutting behavior;
+- `application/modules` contains application-local modules;
+- `application/core` must not depend on `application/modules`;
+- `application/modules` may depend on `application/core`;
+- `provider` wires external services and may use `application/core`;
 - reusable contracts belong to `stougeiro/base-contract`, not to this app;
 - the FPM runtime belongs to `stougeiro/base`, not to this app.
 
-## Project layout
+## Application layout
 
 ```text
-project/
-├── app/          application-local modules
+application/
+├── modules/      application-local modules
 ├── bootstrap/    runtime bootstrap
 ├── config/       application configuration
 ├── core/         application foundations (HTTP, security, logging, errors)
 ├── database/     database-facing application code or fixtures
 ├── provider/     service providers
-├── storage/      cache, logs, sessions and temporary files
-├── tests/        Pest tests
-└── vendor/       Composer dependencies
+└── storage/      cache, logs, sessions and temporary files
+
+tests/            Pest tests
+vendor/           Composer dependencies
 
 public_html/
 ├── assets/       public CSS and other static assets
@@ -52,7 +53,7 @@ public_html/
 └── index.php
 ```
 
-Nothing under `project/` should be exposed by the web server.
+Nothing under `application/` should be exposed by the web server.
 
 ## Where code belongs
 
@@ -60,18 +61,18 @@ Nothing under `project/` should be exposed by the web server.
 |---|---|
 | Reusable contract or abstract base for any runtime | `stougeiro/base-contract` |
 | FPM runtime implementation | `stougeiro/base` |
-| App-wide foundation or cross-cutting behavior | `project/core` |
-| Security service or middleware | `project/core/Security` |
-| Service construction and container bindings | `project/provider` |
-| Application-local feature | `project/app/<Module>` |
-| Global middleware policy | `project/config/middlewares.php` |
-| Module/controller middleware | `project/app/<Module>/Config/middlewares.php` |
-| Module routes | `project/app/<Module>/Config/routes.php` |
-| Module controller | `project/app/<Module>/Controller` |
-| Module view | `project/app/<Module>/View` |
+| App-wide foundation or cross-cutting behavior | `application/core` |
+| Security service or middleware | `application/core/Security` |
+| Service construction and container bindings | `application/provider` |
+| Application-local feature | `application/modules/<Module>` |
+| Global middleware policy | `application/config/middlewares.php` |
+| Module/controller middleware | `application/modules/<Module>/Config/middlewares.php` |
+| Module routes | `application/modules/<Module>/Config/routes.php` |
+| Module controller | `application/modules/<Module>/Controller` |
+| Module view | `application/modules/<Module>/View` |
 | Public CSS/assets | `public_html/assets` |
-| Application configuration | `project/config` |
-| Tests | `project/tests` |
+| Application configuration | `application/config` |
+| Tests | `tests` |
 
 Prefer the smallest location that matches the responsibility. Do not put
 business rules in providers, and do not put runtime services in `public_html`.
@@ -81,7 +82,7 @@ business rules in providers, and do not put runtime services in `public_html`.
 A local module belongs to this application and may use `App\Core`.
 
 ```text
-project/app/HelloWorld/
+application/modules/HelloWorld/
 ├── Config/
 │   ├── middlewares.php
 │   └── routes.php
@@ -118,7 +119,7 @@ final class HelloWorldModuleProvider extends ModuleProviderAbstract
 }
 ```
 
-A local module is listed in `project/config/app.php`:
+A local module is listed in `application/config/app.php`:
 
 ```php
 'modules' => [
@@ -136,7 +137,7 @@ not define how it is authored or packaged.
 The app only needs to know:
 
 1. install it with Composer;
-2. register its module provider in `project/config/app.php`.
+2. register its module provider in `application/config/app.php`.
 
 ```php
 'modules' => [
@@ -163,7 +164,7 @@ Use a provider when the application needs to:
 
 Do not use a provider for routes, controllers, views or domain rules.
 
-Providers are listed explicitly in `project/config/app.php`.
+Providers are listed explicitly in `application/config/app.php`.
 
 ## Controllers and HTTP
 
@@ -190,7 +191,7 @@ linked from `public_html/assets`.
 Global middleware runs for every request and is listed in:
 
 ```text
-project/config/middlewares.php
+application/config/middlewares.php
 ```
 
 Use it for application-wide policy:
@@ -205,7 +206,7 @@ Use it for application-wide policy:
 Module middleware is declared in:
 
 ```text
-project/app/<Module>/Config/middlewares.php
+application/modules/<Module>/Config/middlewares.php
 ```
 
 It is loaded by the module provider and applies to the module wildcard (`*`) or
@@ -217,10 +218,10 @@ Use it for behavior owned by a single module.
 
 Error behavior is split intentionally:
 
-- `project/core/Error/ViewErrorRenderer.php`: rendering policy;
-- `project/app/Error/ErrorModuleProvider.php`: view alias registration;
-- `project/app/Error/View`: development and production error pages;
-- `project/config/error.php`: renderer, messages and snippet configuration.
+- `application/core/Error/ViewErrorRenderer.php`: rendering policy;
+- `application/modules/Error/ErrorModuleProvider.php`: view alias registration;
+- `application/modules/Error/View`: development and production error pages;
+- `application/config/error.php`: renderer, messages and snippet configuration.
 
 Development pages may show diagnostic detail. Production pages expose only the
 status and a safe message.
@@ -232,9 +233,9 @@ inline HTML/CSS and is not controlled by application middleware.
 
 Application logging is classified by status:
 
-- `project/storage/log/error-YYYYMMDD.log`: 5xx;
-- `project/storage/log/security-YYYYMMDD.log`: 4xx;
-- `project/storage/log/php-error-YYYYMMDD.log`: PHP-level failures and fallback.
+- `application/storage/log/error-YYYYMMDD.log`: 5xx;
+- `application/storage/log/security-YYYYMMDD.log`: 4xx;
+- `application/storage/log/php-error-YYYYMMDD.log`: PHP-level failures and fallback.
 
 `ClassifiedLog` owns the classification. `PhpErrorLog` configures the PHP error
 log on a best-effort basis.
@@ -244,7 +245,7 @@ or rotate old logs.
 
 ## Security
 
-Security primitives live under `project/core/Security`:
+Security primitives live under `application/core/Security`:
 
 - `Csrf`: session-backed token generation and validation;
 - `RateLimit`: cache-backed request limiting;
@@ -254,11 +255,11 @@ Security primitives live under `project/core/Security`:
 
 CSRF and rate limiting are opt-in per module/controller through the module
 middleware map. Security headers are opt-in globally through
-`project/config/middlewares.php`. The CSRF and rate limit defaults are defined in
-`project/config/security.php`.
+`application/config/middlewares.php`. The CSRF and rate limit defaults are defined in
+`application/config/security.php`.
 
 `App\Core\Security\Middleware\SecurityHeadersMiddleware` is optional and is
-listed in `project/config/middlewares.php` when enabled.
+listed in `application/config/middlewares.php` when enabled.
 
 It applies:
 
@@ -281,9 +282,9 @@ or hosting configuration.
 
 ## Tests
 
-Tests live in `project/tests` and use Pest.
+Tests live in `tests` and use Pest.
 
-From `project/`:
+From the repository root:
 
 ```bash
 composer validate --strict
@@ -316,8 +317,9 @@ composer install --no-dev --optimize-autoloader
 Then upload:
 
 ```text
-project/       → application directory outside the web root
+application/   → application directory outside the web root
 public_html/   → web root
+vendor/        → Composer dependencies outside the web root
 ```
 
 `vendor/` is generated outside the server and copied with the application. The
@@ -327,7 +329,7 @@ shared host does not need Composer at runtime.
 
 - Putting vendor services in `public_html`.
 - Putting business logic in providers.
-- Making `core` depend on `app` modules.
+- Making `application/core` depend on `application/modules`.
 - Making an installable module depend on `App\Core`.
 - Adding implicit module discovery.
 - Adding inline `<style>` or inline scripts under `style-src 'self'`.

@@ -1,0 +1,13 @@
+parameters:
+    level: 9
+    paths:
+        - application/modules
+        - application/bootstrap
+        - application/core
+        - application/database
+        - application/provider
+        - public_html
+    excludePaths:
+        - application/modules/*/View/*
+    bootstrapFiles:
+        - application/bootstrap/app.php
