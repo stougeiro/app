@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+IMAGE="stougeiro/deploy:local"
+LOCAL=0
+ARGS=()
+
+for ARG in "$@"; do
+    if [ "$ARG" = "--local" ]; then
+        LOCAL=1
+    else
+        ARGS+=("$ARG")
+    fi
+done
+
+if [ "${DEPLOY_LOCAL:-0}" = "1" ]; then
+    LOCAL=1
+fi
+
+if [ "$LOCAL" = "1" ]; then
+    exec php "$ROOT/deploy/console.php" "${ARGS[@]}"
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+    echo "error: docker not found; use --local with PHP/Composer/rsync/ssh installed" >&2
+    exit 1
+fi
+
+if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+    echo "building image $IMAGE..." >&2
+    docker build -q -t "$IMAGE" "$ROOT/deploy" >/dev/null
+fi
+
+DOCKER_ARGS=(run --rm -i)
+if [ -t 0 ] && [ -t 1 ]; then
+    DOCKER_ARGS+=(-t)
+fi
+
+DOCKER_ARGS+=(
+    --user "$(id -u):$(id -g)"
+    -e HOME=/tmp
+    -e COMPOSER_ALLOW_SUPERUSER=1
+    -v "$ROOT:/work"
+    -w /work
+)
+
+if [ -d "${HOME}/.ssh" ]; then
+    DOCKER_ARGS+=(-v "${HOME}/.ssh:/tmp/.ssh")
+fi
+
+if [ -d "${HOME}/.cache/composer" ]; then
+    DOCKER_ARGS+=(-v "${HOME}/.cache/composer:/tmp/.cache/composer")
+fi
+
+exec docker "${DOCKER_ARGS[@]}" "$IMAGE" php /work/deploy/console.php "${ARGS[@]}"

@@ -1,0 +1,62 @@
+{
+  "defaults": {
+    "ssh": {
+      "port": 22,
+      "identity": ".deploy/ssh/deploy_ed25519"
+    },
+    "preserve": [
+      "/uploads/***",
+      "/.well-known/***"
+    ],
+    "permissions": {
+      "dir": "755",
+      "file": "644",
+      "storage": "775"
+    },
+    "backup": {
+      "enabled": true,
+      "keep": 3
+    },
+    "requiresPlan": false
+  },
+  "targets": {
+    "development": {
+      "ssh": {
+        "host": "dev.example.com",
+        "user": "deploy"
+      },
+      "root": "/home/deploy/development",
+      "webroot": "/home/deploy/public_html/development",
+      "url": "https://dev.example.com"
+    },
+    "staging": {
+      "ssh": {
+        "host": "staging.example.com",
+        "user": "deploy"
+      },
+      "root": "/home/deploy/staging",
+      "webroot": "/home/deploy/public_html/staging",
+      "url": "https://staging.example.com"
+    },
+    "production": {
+      "ssh": {
+        "host": "example.com",
+        "user": "deploy",
+        "identity": ".deploy/ssh/production_ed25519"
+      },
+      "root": "/home/deploy/app",
+      "webroot": "/home/deploy/public_html",
+      "url": "https://example.com",
+      "requiresPlan": true,
+      "preserve": [
+        "/uploads/***",
+        "/.well-known/***",
+        "/staging/***",
+        "/development/***"
+      ],
+      "backup": {
+        "keep": 10
+      }
+    }
+  }
+}
