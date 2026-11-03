@@ -43,6 +43,7 @@ final class RateLimit implements ServiceFactoryInterface
         $cacheKey = 'rate:'. hash('sha256', $key);
         $now = time();
         $entry = $this->cache->get($cacheKey);
+        $entry = is_object($entry) ? (array) $entry : $entry;
 
         if (
                ! is_array($entry)
