@@ -8,7 +8,7 @@
     <source>
         <include>
             <directory>app</directory>
-            <directory>contract</directory>
+            <directory>core</directory>
             <directory>provider</directory>
         </include>
     </source>
