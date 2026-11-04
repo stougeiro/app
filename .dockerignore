@@ -5,7 +5,7 @@
 .idea
 .vscode
 .opencode
-public_html
+public
 tests
 phpunit.xml
 phpstan.neon

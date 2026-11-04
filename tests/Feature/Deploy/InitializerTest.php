@@ -14,17 +14,16 @@ function deployInitializerRoot(): string
 }
 
 
-test('creates the local .deploy directories and copies the example config', function () {
+test('creates the local deploy directories and copies the example config', function () {
     $root = deployInitializerRoot();
 
     (new Initializer($root))->run();
 
-    expect(is_dir($root .'/.deploy/env'))->toBeTrue()
-        ->and(is_dir($root .'/.deploy/ssh'))->toBeTrue()
-        ->and(is_dir($root .'/.deploy/plans'))->toBeTrue()
-        ->and(is_dir($root .'/.deploy/override/development/public_html'))->toBeTrue()
+    expect(is_dir($root .'/.deploy/ssh'))->toBeTrue()
+        ->and(is_dir($root .'/.deploy/override/development/public'))->toBeTrue()
         ->and(is_dir($root .'/.deploy/override/staging/application'))->toBeTrue()
-        ->and(is_dir($root .'/.deploy/override/production/vendor'))->toBeTrue()
+        ->and(is_dir($root .'/.deploy/override/production/public'))->toBeTrue()
+        ->and(is_dir($root .'/.deploy/override/production/vendor'))->toBeFalse()
         ->and(file_get_contents($root .'/deploy.json'))->toBe('{"targets":{}}');
 });
 
@@ -46,10 +45,8 @@ test('is idempotent', function () {
     $initializer->run();
     $initializer->run();
 
-    expect(is_dir($root .'/.deploy/env'))->toBeTrue()
-        ->and(is_dir($root .'/.deploy/ssh'))->toBeTrue()
-        ->and(is_dir($root .'/.deploy/plans'))->toBeTrue()
-        ->and(is_dir($root .'/.deploy/override/staging/public_html'))->toBeTrue()
+    expect(is_dir($root .'/.deploy/ssh'))->toBeTrue()
+        ->and(is_dir($root .'/.deploy/override/staging/public'))->toBeTrue()
         ->and(file_get_contents($root .'/deploy.json'))->toBe('{"targets":{}}');
 });
 
@@ -87,7 +84,7 @@ test('rejects a symlinked deploy subdirectory', function () {
     $root = deployInitializerRoot();
     mkdir($root .'/.deploy', 0700);
     mkdir($root .'/elsewhere', 0700);
-    symlink($root .'/elsewhere', $root .'/.deploy/env');
+    symlink($root .'/elsewhere', $root .'/.deploy/ssh');
 
     expect(fn () => (new Initializer($root))->run())
         ->toThrow(RuntimeException::class, 'refusing to use symlink');
@@ -97,7 +94,7 @@ test('rejects a symlinked deploy subdirectory', function () {
 test('rejects a deploy subdirectory that is a file', function () {
     $root = deployInitializerRoot();
     mkdir($root .'/.deploy', 0700);
-    file_put_contents($root .'/.deploy/plans', 'not a directory');
+    file_put_contents($root .'/.deploy/ssh', 'not a directory');
 
     expect(fn () => (new Initializer($root))->run())
         ->toThrow(RuntimeException::class, 'not a directory');

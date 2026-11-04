@@ -31,6 +31,7 @@ Thumbs.db
 /application/storage/log/*
 /application/storage/session/*
 /application/storage/temp/*
+/application/storage/upload/*
 /application/storage/*.sqlite
 
 

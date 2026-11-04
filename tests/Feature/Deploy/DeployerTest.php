@@ -12,10 +12,9 @@ function deployDeployerWorkspace(): string
 
     foreach ([
         'application/Config',
-        'public_html/assets',
-        '.deploy/env',
-        '.deploy/plans',
-        '.deploy/override/staging/public_html',
+        'public/assets',
+        '.deploy/override/staging/application',
+        '.deploy/override/staging/public',
     ] as $directory)
     {
         mkdir($root .'/'. $directory, 0700, true);
@@ -24,13 +23,10 @@ function deployDeployerWorkspace(): string
     file_put_contents($root .'/composer.json', '{}');
     file_put_contents($root .'/composer.lock', '{}');
     file_put_contents($root .'/application/Config/app.php', '<?php return [];');
-    file_put_contents($root .'/public_html/index.php', '<?php');
-    file_put_contents($root .'/public_html/assets/app.css', 'body{}');
-    file_put_contents($root .'/.deploy/override/staging/public_html/.htaccess', 'Options -Indexes');
-    file_put_contents(
-        $root .'/.deploy/env/staging.json',
-        json_encode(['environment' => 'staging', 'APP_KEY' => 'abc'], JSON_THROW_ON_ERROR),
-    );
+    file_put_contents($root .'/public/index.php', '<?php');
+    file_put_contents($root .'/public/assets/app.css', 'body{}');
+    file_put_contents($root .'/.deploy/override/staging/public/.htaccess', 'Options -Indexes');
+    file_put_contents($root .'/.deploy/override/staging/application/env.json', '{"environment":"staging"}');
 
     return $root;
 }
@@ -38,7 +34,6 @@ function deployDeployerWorkspace(): string
 
 function deployDeployerShell(
     bool $failWebrootRsync = false,
-    ?string $remoteEnv = null,
     string $snapshotList = '',
     bool $hasRsync = true,
     string $rootStatus = '200',
@@ -47,11 +42,9 @@ function deployDeployerShell(
     ?string $manifest = null,
     bool $failComposer = false,
     bool $composerNoVendor = false,
-    bool $failEnvHash = false,
 ): FakeShell {
     return new FakeShell(function (array $command, ?string $stdin = null, ?string $cwd = null) use (
         $failWebrootRsync,
-        $remoteEnv,
         $snapshotList,
         $hasRsync,
         $rootStatus,
@@ -60,7 +53,6 @@ function deployDeployerShell(
         $manifest,
         $failComposer,
         $composerNoVendor,
-        $failEnvHash,
     ): ShellResult {
         $binary = $command[0];
         $remote = $command[count($command) - 1];
@@ -70,16 +62,6 @@ function deployDeployerShell(
             if (str_contains($remote, 'command -v rsync'))
             {
                 return new ShellResult(0, $hasRsync ? 'yes' : 'no', '');
-            }
-
-            if (str_contains($remote, 'PHP_VERSION'))
-            {
-                return new ShellResult(0, '8.2.10', '');
-            }
-
-            if (str_contains($remote, 'then echo active'))
-            {
-                return new ShellResult(0, 'inactive', '');
             }
 
             if (str_contains($remote, 'ls -1dt'))
@@ -99,18 +81,6 @@ function deployDeployerShell(
                     'root' => '/srv/app',
                     'webroot' => '/srv/app/public_html',
                 ], JSON_THROW_ON_ERROR), '');
-            }
-
-            if (str_contains($remote, 'sha256sum'))
-            {
-                $hash = $failEnvHash ? str_repeat('0', 64) : hash('sha256', (string) $stdin);
-
-                return new ShellResult(0, $hash .'  /srv/app/application/env.json', '');
-            }
-
-            if (str_contains($remote, 'env.json'))
-            {
-                return new ShellResult(0, $remoteEnv ?? '__MISSING__', '');
             }
 
             return new ShellResult(0, '', '');
@@ -180,188 +150,50 @@ function deployDeployerCalls(FakeShell $shell): string
 }
 
 
-test('check accepts a reachable target with a valid remote env', function () {
+test('check accepts a reachable target without probing php cli', function () {
     $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell(remoteEnv: '{"environment":"staging"}');
+    $shell = deployDeployerShell();
     $deployer = new Deployer($root, DeployFixtures::target(), $shell);
 
     $deployer->check();
 
-    expect($shell->calls)->not->toBeEmpty();
+    expect($shell->calls)->not->toBeEmpty()
+        ->and(deployDeployerCalls($shell))->not->toContain('PHP_VERSION');
 });
 
 
-test('plan writes a plan including env and override changes', function () {
+test('push creates a backup, transfers the build and applies overrides', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell();
     $deployer = new Deployer($root, DeployFixtures::target(), $shell);
 
-    $deployer->plan(true);
-
-    $file = $root .'/.deploy/plans/staging.json';
-    $plan = json_decode((string) file_get_contents($file), true, 512, JSON_THROW_ON_ERROR);
-
-    expect($plan['target'])->toBe('staging')
-        ->and($plan['withEnv'])->toBeTrue()
-        ->and($plan['envHash'])->toBeString()
-        ->and(deployDeployerCalls($shell))->toContain('--dry-run');
-});
-
-
-test('maintenance status reports the remote marker and http code', function () {
-    $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell();
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
-
-    $deployer->maintenanceStatus();
-
-    expect(deployDeployerCalls($shell))
-        ->toContain('echo active')
-        ->toContain('curl');
-});
-
-
-test('push transfers build and overrides and writes env', function () {
-    $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell();
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
-
-    $deployer->push(true);
+    $deployer->push();
 
     $calls = deployDeployerCalls($shell);
-    $rsync = array_values(array_filter(
-        $shell->calls,
-        static fn (array $call): bool => $call['command'][0] === 'rsync',
-    ));
 
-    expect($rsync)->toHaveCount(4)
-        ->and($calls)->toContain('.maintenance')
-        ->and($calls)->toContain('sha256sum')
-        ->and($calls)->toContain('--exclude=/uploads/***');
+    expect($calls)
+        ->toContain('root.tar.gz')
+        ->toContain('webroot.tar.gz')
+        ->toContain('composer install')
+        ->toContain('storage/upload')
+        ->toContain('/public/')
+        ->toContain('.deploy/override/staging/application/')
+        ->toContain('.deploy/override/staging/public/');
 });
 
 
-test('check warns when a nested webroot lacks an override entrypoint', function () {
-    $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell(remoteEnv: '{"environment":"staging"}');
-    $deployer = new Deployer(
-        $root,
-        DeployFixtures::target(root: '/srv/app/code', webroot: '/srv/app/public_html'),
-        $shell,
-    );
-
-    $deployer->check();
-
-    expect($shell->calls)->not->toBeEmpty();
-});
-
-
-test('plan previews the fallback when rsync is unavailable', function () {
-    $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell(hasRsync: false);
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
-
-    $deployer->plan(false);
-
-    expect(deployDeployerCalls($shell))->not->toContain('--dry-run');
-});
-
-
-test('push rejects a remote env for another environment', function () {
-    $root = deployDeployerWorkspace();
-    $deployer = new Deployer(
-        $root,
-        DeployFixtures::target(),
-        deployDeployerShell(remoteEnv: '{"environment":"production"}'),
-    );
-
-    expect(fn () => $deployer->push(true))
-        ->toThrow(RuntimeException::class, "env declares 'production'");
-});
-
-
-test('push fails when composer does not create the vendor directory', function () {
-    $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell(composerNoVendor: true);
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
-
-    expect(fn () => $deployer->push(true))
-        ->toThrow(RuntimeException::class, 'did not generate the vendor directory');
-});
-
-
-test('push fails when the remote env hash does not match after write', function () {
-    $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell(failEnvHash: true);
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
-
-    expect(fn () => $deployer->push(true))
-        ->toThrow(RuntimeException::class, 'does not match after write');
-});
-
-
-test('push fails when composer cannot build the vendor directory', function () {
-    $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell(failComposer: true);
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
-
-    expect(fn () => $deployer->push(true))
-        ->toThrow(RuntimeException::class, 'composer failed');
-});
-
-
-test('push fails when the local env is missing', function () {
-    $root = deployDeployerWorkspace();
-    unlink($root .'/.deploy/env/staging.json');
-    $deployer = new Deployer($root, DeployFixtures::target(), deployDeployerShell());
-
-    expect(fn () => $deployer->push(true))
-        ->toThrow(RuntimeException::class, 'local env not found');
-});
-
-
-test('push rejects invalid remote env json', function () {
-    $root = deployDeployerWorkspace();
-    $deployer = new Deployer($root, DeployFixtures::target(), deployDeployerShell(remoteEnv: '{'));
-
-    expect(fn () => $deployer->push(true))
-        ->toThrow(RuntimeException::class, 'invalid remote env');
-});
-
-
-test('push rejects a remote env that is not an object', function () {
-    $root = deployDeployerWorkspace();
-    $deployer = new Deployer($root, DeployFixtures::target(), deployDeployerShell(remoteEnv: '"text"'));
-
-    expect(fn () => $deployer->push(true))
-        ->toThrow(RuntimeException::class, 'must be a JSON object');
-});
-
-
-test('push keeps maintenance active when backups are disabled and transfer fails', function () {
+test('push restores the backup when the transfer fails', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell(failWebrootRsync: true);
-    $deployer = new Deployer($root, DeployFixtures::target(backupEnabled: false), $shell);
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
 
-    expect(fn () => $deployer->push(true))
+    expect(fn () => $deployer->push())
         ->toThrow(RuntimeException::class, 'rsync boom');
 
     expect(deployDeployerCalls($shell))
-        ->not->toContain('root.tar.gz')
-        ->not->toContain('manifest.json');
-});
-
-
-test('push skips the snapshot when backups are disabled', function () {
-    $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell();
-    $deployer = new Deployer($root, DeployFixtures::target(backupEnabled: false), $shell);
-
-    $deployer->push(true);
-
-    expect(deployDeployerCalls($shell))
-        ->not->toContain('root.tar.gz')
-        ->not->toContain('manifest.json');
+        ->toContain('manifest.json')
+        ->toContain('root.tar.gz')
+        ->toContain('webroot.tar.gz');
 });
 
 
@@ -370,12 +202,10 @@ test('push fails when the root url does not return 200', function () {
     $shell = deployDeployerShell(rootStatus: '500');
     $deployer = new Deployer($root, DeployFixtures::target(), $shell);
 
-    expect(fn () => $deployer->push(true))
+    expect(fn () => $deployer->push())
         ->toThrow(RuntimeException::class, 'returned 500');
 
-    expect(deployDeployerCalls($shell))
-        ->toContain('manifest.json')
-        ->toContain('root.tar.gz');
+    expect(deployDeployerCalls($shell))->toContain('manifest.json');
 });
 
 
@@ -384,7 +214,7 @@ test('push fails when the response contains a fatal error', function () {
     $shell = deployDeployerShell(rootBody: 'Fatal error: boom');
     $deployer = new Deployer($root, DeployFixtures::target(), $shell);
 
-    expect(fn () => $deployer->push(true))
+    expect(fn () => $deployer->push())
         ->toThrow(RuntimeException::class, 'fatal error');
 });
 
@@ -394,30 +224,28 @@ test('push fails when the missing url does not return 404', function () {
     $shell = deployDeployerShell(missingStatus: '200');
     $deployer = new Deployer($root, DeployFixtures::target(), $shell);
 
-    expect(fn () => $deployer->push(true))
+    expect(fn () => $deployer->push())
         ->toThrow(RuntimeException::class, 'did not return 404');
 });
 
 
-test('push restores the snapshot when the transfer fails', function () {
+test('push fails when composer cannot build the vendor directory', function () {
     $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell(failWebrootRsync: true);
+    $shell = deployDeployerShell(failComposer: true);
     $deployer = new Deployer($root, DeployFixtures::target(), $shell);
 
-    expect(fn () => $deployer->push(true))
-        ->toThrow(RuntimeException::class, 'rsync boom');
-
-    expect(deployDeployerCalls($shell))->toContain('manifest.json')
-        ->and(deployDeployerCalls($shell))->toContain('root.tar.gz');
+    expect(fn () => $deployer->push())
+        ->toThrow(RuntimeException::class, 'composer failed');
 });
 
 
-test('push requires env on first install', function () {
+test('push fails when composer does not create the vendor directory', function () {
     $root = deployDeployerWorkspace();
-    $deployer = new Deployer($root, DeployFixtures::target(), deployDeployerShell());
+    $shell = deployDeployerShell(composerNoVendor: true);
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
 
-    expect(fn () => $deployer->push(false))
-        ->toThrow(RuntimeException::class, 'remote env missing');
+    expect(fn () => $deployer->push())
+        ->toThrow(RuntimeException::class, 'did not generate the vendor directory');
 });
 
 
@@ -426,51 +254,78 @@ test('push falls back to tar and applies tar overrides', function () {
     $shell = deployDeployerShell(hasRsync: false);
     $deployer = new Deployer($root, DeployFixtures::target(), $shell);
 
-    $deployer->push(true);
+    $deployer->push();
 
     expect(deployDeployerCalls($shell))
         ->toContain('tar -czf')
         ->toContain('scp')
         ->toContain('incoming-root')
-        ->toContain('incoming-webroot');
+        ->toContain('incoming-webroot')
+        ->toContain('.deploy/override/staging/public');
 });
 
 
-test('rollback fails without snapshots', function () {
+test('push excludes nested target webroots', function () {
     $root = deployDeployerWorkspace();
-    $deployer = new Deployer(
-        $root,
-        DeployFixtures::target(),
-        deployDeployerShell(remoteEnv: '{"environment":"staging"}'),
-    );
+    $shell = deployDeployerShell();
+    $target = DeployFixtures::target(nestedWebroots: ['dev']);
+    $deployer = new Deployer($root, $target, $shell);
+
+    $deployer->push();
+
+    expect(deployDeployerCalls($shell))
+        ->toContain('--exclude=/dev')
+        ->toContain("--exclude='./dev'");
+});
+
+
+test('backups lists remote snapshots', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240102-000000/\n/srv/app/.deploy/backups/staging/20240101-000000/\n");
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+
+    expect($deployer->backups())->toBe(['20240102-000000', '20240101-000000']);
+});
+
+
+test('rollback fails without backups', function () {
+    $root = deployDeployerWorkspace();
+    $deployer = new Deployer($root, DeployFixtures::target(), deployDeployerShell());
 
     expect(fn () => $deployer->rollback(null))
-        ->toThrow(RuntimeException::class, 'no snapshot found');
+        ->toThrow(RuntimeException::class, 'no backup found');
 });
 
 
-test('rollback rejects an unknown snapshot', function () {
+test('rollback rejects an invalid timestamp', function () {
     $root = deployDeployerWorkspace();
     $deployer = new Deployer(
         $root,
         DeployFixtures::target(),
-        deployDeployerShell(
-            remoteEnv: '{"environment":"staging"}',
-            snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
-        ),
+        deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n"),
+    );
+
+    expect(fn () => $deployer->rollback('invalid'))
+        ->toThrow(RuntimeException::class, 'invalid backup timestamp');
+});
+
+
+test('rollback rejects an unknown timestamp', function () {
+    $root = deployDeployerWorkspace();
+    $deployer = new Deployer(
+        $root,
+        DeployFixtures::target(),
+        deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n"),
     );
 
     expect(fn () => $deployer->rollback('20240102-000000'))
-        ->toThrow(RuntimeException::class, 'snapshot not found');
+        ->toThrow(RuntimeException::class, 'backup not found');
 });
 
 
-test('rollback restores the latest snapshot', function () {
+test('rollback restores the latest backup by default', function () {
     $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell(
-        remoteEnv: '{"environment":"staging"}',
-        snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
-    );
+    $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n");
     $deployer = new Deployer($root, DeployFixtures::target(), $shell);
 
     $deployer->rollback(null);
@@ -478,17 +333,39 @@ test('rollback restores the latest snapshot', function () {
     expect(deployDeployerCalls($shell))
         ->toContain('ls -1dt')
         ->toContain('manifest.json')
-        ->toContain('root.tar.gz');
+        ->toContain('root.tar.gz')
+        ->toContain('webroot.tar.gz');
 });
 
 
-test('rollback rejects a snapshot without a manifest', function () {
+test('rollback restores a specific timestamp', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240102-000000/\n/srv/app/.deploy/backups/staging/20240101-000000/\n");
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+
+    $deployer->rollback('20240101-000000');
+
+    expect(deployDeployerCalls($shell))->toContain('20240101-000000');
+});
+
+
+test('rollback preserves nested target webroots', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n");
+    $deployer = new Deployer($root, DeployFixtures::target(nestedWebroots: ['dev']), $shell);
+
+    $deployer->rollback(null);
+
+    expect(deployDeployerCalls($shell))->toContain("! -name 'dev'");
+});
+
+
+test('rollback rejects a backup without a manifest', function () {
     $root = deployDeployerWorkspace();
     $deployer = new Deployer(
         $root,
         DeployFixtures::target(),
         deployDeployerShell(
-            remoteEnv: '{"environment":"staging"}',
             snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
             manifest: '__MISSING__',
         ),
@@ -499,13 +376,12 @@ test('rollback rejects a snapshot without a manifest', function () {
 });
 
 
-test('rollback rejects an invalid snapshot manifest', function () {
+test('rollback rejects an invalid manifest', function () {
     $root = deployDeployerWorkspace();
     $deployer = new Deployer(
         $root,
         DeployFixtures::target(),
         deployDeployerShell(
-            remoteEnv: '{"environment":"staging"}',
             snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
             manifest: '{',
         ),
@@ -522,7 +398,6 @@ test('rollback rejects a manifest that is not an object', function () {
         $root,
         DeployFixtures::target(),
         deployDeployerShell(
-            remoteEnv: '{"environment":"staging"}',
             snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
             manifest: '123',
         ),
@@ -533,13 +408,12 @@ test('rollback rejects a manifest that is not an object', function () {
 });
 
 
-test('rollback rejects a snapshot for another layout', function () {
+test('rollback rejects a backup for another layout', function () {
     $root = deployDeployerWorkspace();
     $deployer = new Deployer(
         $root,
         DeployFixtures::target(),
         deployDeployerShell(
-            remoteEnv: '{"environment":"staging"}',
             snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
             manifest: json_encode([
                 'target' => 'staging',

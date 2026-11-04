@@ -9,7 +9,7 @@ class Target
 {
     /**
      * @param list<string> $preserve
-     * @param array{dir:string,file:string,storage:string} $permissions
+     * @param list<string> $nestedWebroots
      */
     public function __construct(
         public readonly string $name,
@@ -21,10 +21,8 @@ class Target
         public readonly string $root,
         public readonly string $url,
         public readonly array $preserve,
-        public readonly array $permissions,
-        public readonly bool $backupEnabled,
         public readonly int $backupKeep,
-        public readonly bool $requiresPlan,
+        public readonly array $nestedWebroots = [],
     ) {
     }
 
@@ -37,17 +35,14 @@ class Target
 
     public function identityPath(): ?string
     {
-        if ($this->sshIdentity === null || $this->sshIdentity === '')
-        {
+        if ($this->sshIdentity === null || $this->sshIdentity === '') {
             return null;
         }
 
-        if (str_starts_with($this->sshIdentity, '~/'))
-        {
+        if (str_starts_with($this->sshIdentity, '~/')) {
             $home = getenv('HOME');
 
-            if ($home === false || $home === '')
-            {
+            if ($home === false || $home === '') {
                 throw new RuntimeException('HOME is not set to expand '. $this->sshIdentity);
             }
 
@@ -55,27 +50,5 @@ class Target
         }
 
         return $this->sshIdentity;
-    }
-
-
-    /**
-     * @return array<string, mixed>
-     */
-    public function fingerprintData(): array
-    {
-        return [
-            'name' => $this->name,
-            'sshHost' => $this->sshHost,
-            'sshUser' => $this->sshUser,
-            'sshPort' => $this->sshPort,
-            'webroot' => $this->webroot,
-            'root' => $this->root,
-            'url' => $this->url,
-            'preserve' => $this->preserve,
-            'permissions' => $this->permissions,
-            'backupEnabled' => $this->backupEnabled,
-            'backupKeep' => $this->backupKeep,
-            'requiresPlan' => $this->requiresPlan,
-        ];
     }
 }

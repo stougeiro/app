@@ -6,7 +6,7 @@ parameters:
         - application/core
         - application/database
         - application/provider
-        - public_html
+        - public
         - tools/deploy/src
         - tools/deploy/console.php
     excludePaths:

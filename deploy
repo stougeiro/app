@@ -45,6 +45,20 @@ DOCKER_ARGS+=(
     -w /work
 )
 
+if [ "$(id -u)" != "0" ]; then
+    DEPLOY_PASSWD="$(mktemp)"
+    trap 'rm -f "$DEPLOY_PASSWD"' EXIT
+    chmod 0644 "$DEPLOY_PASSWD"
+
+    {
+        printf 'root:x:0:0:root:/root:/bin/sh\n'
+        printf '%s:x:%s:%s:%s:/tmp:/bin/sh\n' \
+            "$(id -un)" "$(id -u)" "$(id -g)" "$(id -un)"
+    } > "$DEPLOY_PASSWD"
+
+    DOCKER_ARGS+=(-v "$DEPLOY_PASSWD:/etc/passwd:ro")
+fi
+
 if [ -d "${HOME}/.ssh" ]; then
     DOCKER_ARGS+=(-v "${HOME}/.ssh:/tmp/.ssh")
 fi
@@ -53,4 +67,4 @@ if [ -d "${HOME}/.cache/composer" ]; then
     DOCKER_ARGS+=(-v "${HOME}/.cache/composer:/tmp/.cache/composer")
 fi
 
-exec docker "${DOCKER_ARGS[@]}" "$IMAGE" php /work/tools/deploy/console.php "${ARGS[@]}"
+docker "${DOCKER_ARGS[@]}" "$IMAGE" php /work/tools/deploy/console.php "${ARGS[@]}"

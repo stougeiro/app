@@ -14,8 +14,6 @@ foreach ([
     'Shell',
     'Target',
     'Config',
-    'EnvFile',
-    'PlanGate',
     'Ssh',
     'Maintenance',
     'Deployer',
@@ -50,21 +48,21 @@ function parseArguments(array $args): array
             continue;
         }
 
-        if ($argument === '--with-env')
+        if ($argument === '--list')
         {
-            $options['with-env'] = true;
+            $options['list'] = true;
             continue;
         }
 
-        if (str_starts_with($argument, '--backup='))
+        if (str_starts_with($argument, '--timestamp='))
         {
-            $options['backup'] = substr($argument, 9);
+            $options['timestamp'] = substr($argument, 12);
             continue;
         }
 
-        if ($argument === '--backup')
+        if ($argument === '--timestamp')
         {
-            $options['backup'] = $args[++$index] ?? '';
+            $options['timestamp'] = $args[++$index] ?? '';
             continue;
         }
 
@@ -79,11 +77,10 @@ function usage(): void
     fwrite(STDOUT, <<<'TXT'
 Usage:
   deploy init
-  deploy check       --target=<development|staging|production>
-  deploy plan        --target=<...> [--with-env]
-  deploy push        --target=<...> [--with-env]
-  deploy maintenance --target=<...>
-  deploy rollback    --target=<...> [--backup=<ts>]
+  deploy check    --target=<development|staging|production>
+  deploy push     --target=<...>
+  deploy rollback --target=<...> --list
+  deploy rollback --target=<...> [--timestamp=<Ymd-His>]
 
 TXT);
 }
@@ -102,26 +99,19 @@ try
         exit(0);
     }
 
-    if ( ! in_array($command, ['init', 'check', 'plan', 'push', 'maintenance', 'rollback'], true))
+    if ( ! in_array($command, ['init', 'check', 'push', 'rollback'], true))
     {
         throw new RuntimeException("unknown command: {$command}");
     }
 
     if ($command === 'init')
     {
-        if (array_key_exists('target', $options))
+        foreach (['target', 'list', 'timestamp'] as $option)
         {
-            throw new RuntimeException('init does not accept --target');
-        }
-
-        if (array_key_exists('with-env', $options))
-        {
-            throw new RuntimeException('init does not accept --with-env');
-        }
-
-        if (array_key_exists('backup', $options))
-        {
-            throw new RuntimeException('init does not accept --backup');
+            if (array_key_exists($option, $options))
+            {
+                throw new RuntimeException("init does not accept --{$option}");
+            }
         }
 
         (new Initializer($root))->run();
@@ -135,18 +125,17 @@ try
         throw new RuntimeException('--target is required');
     }
 
+    if ($command !== 'rollback' && array_key_exists('list', $options))
+    {
+        throw new RuntimeException('--list is only valid for rollback');
+    }
+
+    if ($command !== 'rollback' && array_key_exists('timestamp', $options))
+    {
+        throw new RuntimeException('--timestamp is only valid for rollback');
+    }
+
     $config = Config::load($root .'/deploy.json');
-
-    if ( ! in_array($command, ['plan', 'push'], true) && array_key_exists('with-env', $options))
-    {
-        throw new RuntimeException('--with-env is only valid for plan and push');
-    }
-
-    if ($command !== 'rollback' && array_key_exists('backup', $options))
-    {
-        throw new RuntimeException('--backup is only valid for rollback');
-    }
-
     $target = $config->target($targetName);
     $deployer = new Deployer($root, $target, new Shell());
 
@@ -156,27 +145,44 @@ try
             $deployer->check();
             break;
 
-        case 'plan':
-            $deployer->plan(array_key_exists('with-env', $options));
-            break;
-
         case 'push':
-            $deployer->push(array_key_exists('with-env', $options));
-            break;
-
-        case 'maintenance':
-            $deployer->maintenanceStatus();
+            $deployer->push();
             break;
 
         case 'rollback':
-            $backup = $options['backup'] ?? null;
-
-            if ($backup !== null && (! is_string($backup) || $backup === ''))
+            if (array_key_exists('list', $options))
             {
-                throw new RuntimeException('--backup requires a value');
+                if (array_key_exists('timestamp', $options))
+                {
+                    throw new RuntimeException('--list and --timestamp cannot be used together');
+                }
+
+                $backups = $deployer->backups();
+
+                if ($backups === [])
+                {
+                    fwrite(STDOUT, '['. $target->name .'] no backups'. PHP_EOL);
+                    break;
+                }
+
+                fwrite(STDOUT, '['. $target->name .'] backups:'. PHP_EOL);
+
+                foreach ($backups as $backup)
+                {
+                    fwrite(STDOUT, $backup . PHP_EOL);
+                }
+
+                break;
             }
 
-            $deployer->rollback(is_string($backup) ? $backup : null);
+            $timestamp = $options['timestamp'] ?? null;
+
+            if ($timestamp !== null && (! is_string($timestamp) || $timestamp === ''))
+            {
+                throw new RuntimeException('--timestamp requires a value');
+            }
+
+            $deployer->rollback(is_string($timestamp) ? $timestamp : null);
             break;
     }
 

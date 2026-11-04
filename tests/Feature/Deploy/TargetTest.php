@@ -1,6 +1,5 @@
 <?php declare(strict_types=1);
 
-use Deploy\Target;
 use Tests\Feature\Deploy\DeployFixtures;
 
 
@@ -57,35 +56,9 @@ test('throws when a home-relative identity has no HOME', function () {
 });
 
 
-test('fingerprint data contains the deploy identity fields', function () {
-    $target = new Target(
-        'staging',
-        'staging.example.com',
-        'deploy',
-        22,
-        null,
-        '/srv/app/public_html',
-        '/srv/app',
-        'https://staging.example.com',
-        ['/uploads/***'],
-        ['dir' => '755', 'file' => '644', 'storage' => '775'],
-        true,
-        3,
-        false,
-    );
+test('exposes backup and nested webroot settings', function () {
+    $target = DeployFixtures::target(backupKeep: 5, nestedWebroots: ['dev', 'staging']);
 
-    expect($target->fingerprintData())->toBe([
-        'name' => 'staging',
-        'sshHost' => 'staging.example.com',
-        'sshUser' => 'deploy',
-        'sshPort' => 22,
-        'webroot' => '/srv/app/public_html',
-        'root' => '/srv/app',
-        'url' => 'https://staging.example.com',
-        'preserve' => ['/uploads/***'],
-        'permissions' => ['dir' => '755', 'file' => '644', 'storage' => '775'],
-        'backupEnabled' => true,
-        'backupKeep' => 3,
-        'requiresPlan' => false,
-    ]);
+    expect($target->backupKeep)->toBe(5)
+        ->and($target->nestedWebroots)->toBe(['dev', 'staging']);
 });

@@ -7,7 +7,7 @@ services:
       - "80:80"
     restart: unless-stopped
     volumes:
-      - ./public_html:/var/www/html:ro
+      - ./public:/var/www/html:ro
       - ./application:/var/www/application
       - ./docker/php/php.ini:/usr/local/etc/php/conf.d/zz-shared.ini:ro
       - ./docker/apache/000-default.conf:/etc/apache2/sites-available/000-default.conf:ro

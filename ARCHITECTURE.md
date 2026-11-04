@@ -10,7 +10,7 @@ Swoole, and it does not define how third-party installable modules are authored.
 ## Dependency direction
 
 ```text
-public_html
+public
     ↓
 bootstrap / config
     ↓
@@ -23,7 +23,7 @@ stougeiro/base → stougeiro/base-contract
 
 The rules are:
 
-- `public_html` is the entrypoint and public asset directory only;
+- `public` is the entrypoint and public asset directory only;
 - `application/core` contains application foundations and cross-cutting behavior;
 - `application/modules` contains application-local modules;
 - `application/core` must not depend on `application/modules`;
@@ -42,12 +42,12 @@ application/
 ├── core/         application foundations (HTTP, security, logging, errors)
 ├── database/     database-facing application code or fixtures
 ├── provider/     service providers
-└── storage/      cache, logs, sessions and temporary files
+└── storage/      cache, logs, sessions, uploads and temporary files
 
 tests/            Pest tests
 vendor/           Composer dependencies
 
-public_html/
+public/
 ├── assets/       public CSS and other static assets
 ├── .htaccess
 └── index.php
@@ -70,7 +70,7 @@ Nothing under `application/` should be exposed by the web server.
 | Module routes | `application/modules/<Module>/Config/routes.php` |
 | Module controller | `application/modules/<Module>/Controller` |
 | Module view | `application/modules/<Module>/View` |
-| Public CSS/assets | `public_html/assets` |
+| Public CSS/assets | `public/assets` |
 | Application configuration | `application/config` |
 | Tests | `tests` |
 | Deploy tool source | `tools/deploy` |
@@ -78,7 +78,7 @@ Nothing under `application/` should be exposed by the web server.
 | Deploy configuration/state | `deploy.json`, `.deploy` (local only) |
 
 Prefer the smallest location that matches the responsibility. Do not put
-business rules in providers, and do not put runtime services in `public_html`.
+business rules in providers, and do not put runtime services in `public`.
 
 ## Local application modules
 
@@ -185,7 +185,7 @@ protected array $allowed = ['get'];
 `Allow` header.
 
 Views use the module alias registered by the module provider. Public styles are
-linked from `public_html/assets`.
+linked from `public/assets`.
 
 ## Middleware
 
@@ -274,7 +274,7 @@ It applies:
 
 The CSP uses `style-src 'self'`. Inline styles are therefore forbidden in
 application responses. Error pages and the HelloWorld page load CSS from
-`public_html/assets`.
+`public/assets`.
 
 The middleware is attached before and after the remaining chain so headers are
 present even when an inner response is replaced. Errors that occur before the
@@ -293,6 +293,7 @@ From the repository root:
 composer validate --strict
 composer stan
 composer pest
+composer cover:deploy
 ```
 
 Tests must verify observable behavior:
@@ -302,7 +303,8 @@ Tests must verify observable behavior:
 - error pages;
 - log classification;
 - security headers;
-- fallback behavior where applicable.
+- fallback behavior where applicable;
+- deploy configuration, transfer isolation, backups and rollback.
 
 Do not test private implementation details or internal call order unless that
 order is the behavior being protected.
@@ -321,7 +323,7 @@ Then upload:
 
 ```text
 application/   → application directory outside the web root
-public_html/   → web root
+public/        → web root
 vendor/        → Composer dependencies outside the web root
 ```
 
@@ -347,7 +349,7 @@ tools/deploy/src
 
 The rules are:
 
-- treat `application/*` and `public_html/*` as the normal change scope;
+- treat `application/*` and `public/*` as the normal change scope;
 - treat `./deploy` and `tools/deploy` as out of scope for application changes;
 - `./deploy` is only the executable shim;
 - the tool source lives in `tools/deploy`;
@@ -355,23 +357,23 @@ The rules are:
 - the tool must not be uploaded to the server;
 - `deploy.json` and `.deploy/` are local configuration/state and are ignored by
   Git;
-- secrets, environment values, plans and keys stay outside version control.
+- SSH keys and environment values stay outside version control.
 
 The tool deploys only:
 
 ```text
 application/   → target root
-public_html/   → target webroot
+public/   → target webroot
 vendor/        → target root
 ```
 
 Each target declares `root`, `webroot`, `url` and SSH settings in `deploy.json`.
-The deploy tool validates paths, production collisions, environment files,
-plans, maintenance mode, remote snapshots and rollback.
+The deploy tool validates paths and target address uniqueness, applies
+maintenance mode, creates remote backups and supports rollback.
 
 ### Change scope
 
-The normal application change scope is `application/*` and `public_html/*`.
+The normal application change scope is `application/*` and `public/*`.
 
 `./deploy` and `tools/deploy` are outside that scope. They are consumer
 tooling: use them to deploy, but do not modify them unless the task explicitly
@@ -384,7 +386,7 @@ See [DEPLOY.md](DEPLOY.md) for configuration and command reference.
 
 ## Anti-patterns
 
-- Putting vendor services in `public_html`.
+- Putting vendor services in `public`.
 - Putting business logic in providers.
 - Making `application/core` depend on `application/modules`.
 - Making an installable module depend on `App\Core`.

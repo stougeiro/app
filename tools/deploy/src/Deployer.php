@@ -17,8 +17,6 @@ class Deployer
 
     private readonly Maintenance $maintenance;
 
-    private readonly PlanGate $plans;
-
     private bool $hasRsync = false;
 
 
@@ -29,7 +27,6 @@ class Deployer
     ) {
         $this->ssh = new Ssh($shell);
         $this->maintenance = new Maintenance($this->ssh);
-        $this->plans = new PlanGate($projectRoot);
     }
 
 
@@ -47,12 +44,17 @@ class Deployer
             }
         }
 
+        $storage = $target->root .'/application/storage';
+        $upload = $storage .'/upload';
+
         $this->ssh->must(
             $target,
             'test -d '. Ssh::quote($target->root)
             .' && test -w '. Ssh::quote($target->root)
             .' && test -d '. Ssh::quote($target->webroot)
-            .' && test -w '. Ssh::quote($target->webroot),
+            .' && test -w '. Ssh::quote($target->webroot)
+            .' && { [ ! -d '. Ssh::quote($storage) .' ] || test -w '. Ssh::quote($storage) .'; }'
+            .' && { [ ! -d '. Ssh::quote($upload) .' ] || test -w '. Ssh::quote($upload) .'; }',
         );
 
         $this->out('ssh ok, root and webroot are writable');
@@ -65,42 +67,6 @@ class Deployer
         )->output() === 'yes';
 
         $this->out('transport: '. ($this->hasRsync ? 'rsync' : 'tar (fallback)'));
-
-        $php = $this->ssh->must(
-            $target,
-            'php -r '. Ssh::quote('echo PHP_VERSION;') .' 2>/dev/null || echo unknown',
-        )->output();
-
-        if ($php !== 'unknown' && version_compare($php, '8.2.0', '<'))
-        {
-            throw new RuntimeException("remote PHP {$php} is lower than 8.2");
-        }
-
-        $this->out('remote php: '. ($php === '' ? 'unknown' : $php));
-
-        $localEnv = EnvFile::path($this->projectRoot, $target->name);
-
-        if (is_file($localEnv))
-        {
-            EnvFile::load($localEnv, $target->name);
-            $this->out('local env: ok');
-        }
-        else
-        {
-            $this->out('local env: missing ('. $localEnv .')');
-        }
-
-        $remoteEnv = $this->readRemoteEnv();
-
-        if ($remoteEnv === null)
-        {
-            $this->out('remote env: missing');
-        }
-        else
-        {
-            $this->assertEnvironment($remoteEnv);
-            $this->out('remote env: '. $target->name);
-        }
     }
 
 
@@ -111,70 +77,21 @@ class Deployer
             return;
         }
 
-        $override = $this->overridePath('public_html') .'/index.php';
+        $override = $this->overridePath('public') .'/index.php';
 
         if ( ! is_file($override))
         {
             $this->out(
                 'warning: webroot is not directly under root; add an index.php entrypoint at '
-                .'.deploy/override/'. $this->target->name .'/public_html/index.php',
+                .'.deploy/override/'. $this->target->name .'/public/index.php',
             );
         }
     }
 
 
-    public function plan(bool $withEnv): void
+    public function push(): void
     {
         $this->check();
-
-        $sourceHash = $this->plans->sourceHash($this->target);
-        $this->out('source hash: '. substr($sourceHash, 0, 12));
-
-        $this->preview();
-
-        $envHash = null;
-
-        if ($withEnv)
-        {
-            $local = $this->loadLocalEnv();
-            $envHash = EnvFile::hash($local);
-            $diff = EnvFile::diff($local, $this->readRemoteEnv());
-
-            $this->printEnvDiff($diff);
-        }
-
-        $this->plans->write($this->target, $sourceHash, $withEnv, $envHash);
-        $this->out('plan written to .deploy/plans/'. $this->target->name .'.json');
-    }
-
-
-    public function push(bool $withEnv): void
-    {
-        $this->check();
-
-        $remoteEnv = $this->readRemoteEnv();
-
-        if ($remoteEnv === null && ! $withEnv)
-        {
-            throw new RuntimeException('remote env missing; use --with-env on first install');
-        }
-
-        if ($remoteEnv !== null)
-        {
-            $this->assertEnvironment($remoteEnv);
-        }
-
-        $localEnv = null;
-        $envHash = null;
-
-        if ($withEnv)
-        {
-            $localEnv = $this->loadLocalEnv();
-            $envHash = EnvFile::hash($localEnv);
-        }
-
-        $sourceHash = $this->plans->sourceHash($this->target);
-        $this->plans->assertPushAllowed($this->target, $sourceHash, $withEnv, $envHash);
 
         $build = $this->buildVendor();
         $started = false;
@@ -186,36 +103,18 @@ class Deployer
             $this->maintenance->enable($this->target);
             $started = true;
 
-            if ($this->target->backupEnabled)
-            {
-                $snapshot = $this->snapshot();
-                $this->out('snapshot: '. $snapshot);
-            }
-            else
-            {
-                $this->out('backup disabled: no snapshot');
-            }
+            $this->ensureRemoteDirs();
 
-            if ($localEnv !== null)
-            {
-                $this->writeEnv($localEnv);
-                $this->out('env updated');
-            }
+            $snapshot = $this->snapshot();
+            $this->out('backup: '. $snapshot);
 
             $this->transfer($build['vendor']);
-            $this->permissions();
 
             $this->out('disabling maintenance');
             $this->maintenance->disable($this->target);
 
             $this->verify();
-
-            if ($snapshot !== null)
-            {
-                $this->pruneBackups();
-            }
-
-            $this->plans->consume($this->target);
+            $this->pruneBackups();
             $this->out('deploy complete');
         }
         catch (Throwable $error)
@@ -226,7 +125,7 @@ class Deployer
 
                 if ($snapshot === null)
                 {
-                    $this->out('no snapshot: maintenance remains active');
+                    $this->out('no backup: maintenance remains active');
                 }
                 else
                 {
@@ -254,40 +153,40 @@ class Deployer
     }
 
 
-    public function maintenanceStatus(): void
+    /**
+     * @return list<string>
+     */
+    public function backups(): array
     {
-        $status = $this->maintenance->status($this->target);
-        $this->out('maintenance: '. $status);
-
-        $http = $this->shell->run(
-            ['curl', '-sS', '-o', '/dev/null', '-w', '%{http_code}', '-L', '--max-time', '10', $this->target->url],
-        );
-
-        $code = $http->ok() ? $http->output() : '';
-        $this->out('http: '. ($code === '' ? 'unavailable' : $code));
+        return $this->snapshots();
     }
 
 
-    public function rollback(?string $backup): void
+    public function rollback(?string $timestamp): void
     {
         $this->check();
 
-        $snapshots = $this->snapshots();
+        $backups = $this->snapshots();
 
-        if ($backup === null)
+        if ($timestamp === null)
         {
-            if ($snapshots === [])
+            if ($backups === [])
             {
-                throw new RuntimeException('no snapshot found');
+                throw new RuntimeException('no backup found');
             }
 
-            $backup = $snapshots[0];
-            $this->out('latest snapshot: '. $backup);
+            $timestamp = $backups[0];
+            $this->out('latest backup: '. $timestamp);
         }
 
-        if ( ! in_array($backup, $snapshots, true))
+        if (preg_match('/\A[0-9]{8}-[0-9]{6}\z/', $timestamp) !== 1)
         {
-            throw new RuntimeException("snapshot not found: {$backup}");
+            throw new RuntimeException("invalid backup timestamp: {$timestamp}");
+        }
+
+        if ( ! in_array($timestamp, $backups, true))
+        {
+            throw new RuntimeException("backup not found: {$timestamp}");
         }
 
         $started = false;
@@ -296,7 +195,7 @@ class Deployer
         {
             $this->maintenance->enable($this->target);
             $started = true;
-            $this->restore($backup);
+            $this->restore($timestamp);
             $this->maintenance->disable($this->target);
             $this->verify();
             $this->out('rollback complete');
@@ -321,132 +220,7 @@ class Deployer
 
     protected function out(string $message): void
     {
-        fwrite(STDOUT, '['. $this->target->name .'] '. $message . PHP_EOL);
-    }
-
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function loadLocalEnv(): array
-    {
-        return EnvFile::load(
-            EnvFile::path($this->projectRoot, $this->target->name),
-            $this->target->name,
-        );
-    }
-
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function readRemoteEnv(): ?array
-    {
-        $path = $this->target->root .'/application/env.json';
-
-        $result = $this->ssh->must(
-            $this->target,
-            'if [ -f '. Ssh::quote($path) .' ]; then cat '. Ssh::quote($path) .'; else printf __MISSING__; fi',
-        );
-
-        if (trim($result->stdout) === '__MISSING__')
-        {
-            return null;
-        }
-
-        try
-        {
-            $data = json_decode($result->stdout, true, 512, JSON_THROW_ON_ERROR);
-        }
-        catch (JsonException $error)
-        {
-            throw new RuntimeException('invalid remote env: '. $error->getMessage(), 0, $error);
-        }
-
-        if ( ! is_array($data))
-        {
-            throw new RuntimeException('remote env must be a JSON object');
-        }
-
-        /** @var array<string, mixed> $data */
-        return $data;
-    }
-
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function assertEnvironment(array $data): void
-    {
-        $value = $data['environment'] ?? null;
-
-        if ( ! is_string($value) || $value !== $this->target->name)
-        {
-            throw new RuntimeException(
-                "env declares '". (is_string($value) ? $value : '?')
-                ."', expected '". $this->target->name ."'",
-            );
-        }
-    }
-
-
-    private function preview(): void
-    {
-        if ( ! $this->hasRsync)
-        {
-            $this->out('preview: fallback will perform a full copy');
-            $this->out('vendor: always rebuilt with classmap-authoritative');
-            return;
-        }
-
-        $trees = [
-            ['application', $this->target->root .'/application', $this->applicationExcludes()],
-            ['public_html', $this->target->webroot, $this->publicExcludes()],
-        ];
-
-        foreach ($trees as [$label, $destination, $excludes])
-        {
-            $result = $this->shell->run(
-                $this->rsyncArgs($this->projectRoot .'/'. $label .'/', $destination .'/', $excludes, true),
-            );
-
-            $lines = array_values(array_filter(
-                array_map('trim', explode("\n", $result->stdout)),
-                static fn (string $line): bool => $line !== '',
-            ));
-
-            $changes = array_values(array_filter(
-                $lines,
-                static fn (string $line): bool => str_starts_with($line, '>')
-                    || str_starts_with($line, '*deleting')
-                    || str_starts_with($line, 'c'),
-            ));
-
-            $this->out($label .': '. count($changes) .' change(s)');
-
-            foreach (array_slice($changes, 0, 20) as $line)
-            {
-                $this->out('  '. $line);
-            }
-
-            if (count($changes) > 20)
-            {
-                $this->out('  ...');
-            }
-        }
-
-        $this->out('vendor: always rebuilt with classmap-authoritative');
-    }
-
-
-    /**
-     * @param array{added:list<string>,changed:list<string>,removed:list<string>} $diff
-     */
-    private function printEnvDiff(array $diff): void
-    {
-        $this->out('env added: '. ($diff['added'] === [] ? '(none)' : implode(', ', $diff['added'])));
-        $this->out('env changed: '. ($diff['changed'] === [] ? '(none)' : implode(', ', $diff['changed'])));
-        $this->out('env removed: '. ($diff['removed'] === [] ? '(none)' : implode(', ', $diff['removed'])));
+        fwrite(STDOUT, '['. $this->target->name .'] '. $message .PHP_EOL);
     }
 
 
@@ -514,7 +288,15 @@ class Deployer
      */
     private function publicExcludes(): array
     {
-        return ['/.maintenance', ...$this->target->preserve];
+        $excludes = ['/.maintenance', ...$this->target->preserve];
+
+        foreach ($this->target->nestedWebroots as $entry)
+        {
+            $excludes[] = '/'. $entry;
+            $excludes[] = '/'. $entry .'/***';
+        }
+
+        return $excludes;
     }
 
 
@@ -595,6 +377,7 @@ class Deployer
             $target->root .'/application/storage/log',
             $target->root .'/application/storage/session',
             $target->root .'/application/storage/temp',
+            $target->root .'/application/storage/upload',
             $target->root .'/vendor',
             $target->root .'/.deploy',
             $target->root .'/.deploy/backups',
@@ -622,10 +405,10 @@ class Deployer
             ),
         );
 
-        $this->out('rsync public_html');
+        $this->out('rsync public');
         $this->shell->mustRun(
             $this->rsyncArgs(
-                $this->projectRoot .'/public_html/',
+                $this->projectRoot .'/public/',
                 $this->target->webroot .'/',
                 $this->publicExcludes(),
                 false,
@@ -659,12 +442,16 @@ class Deployer
                 'vendor',
             ]);
 
-            $this->shell->mustRun([
-                'tar', '-czf', $webrootArchive,
-                '--exclude=.maintenance',
-                '-C', $this->projectRoot .'/public_html',
-                '.',
-            ]);
+            $webrootCommand = ['tar', '-czf', $webrootArchive, '--exclude=.maintenance'];
+
+            foreach ($target->nestedWebroots as $entry)
+            {
+                $webrootCommand[] = '--exclude=./'. $entry;
+            }
+
+            array_push($webrootCommand, '-C', $this->projectRoot .'/public', '.');
+
+            $this->shell->mustRun($webrootCommand);
 
             $this->out('tar fallback: uploading');
             $this->upload($rootArchive, $rootRemote);
@@ -697,8 +484,7 @@ class Deployer
     {
         foreach ([
             ['application', $this->overridePath('application'), $this->target->root .'/application'],
-            ['public_html', $this->overridePath('public_html'), $this->target->webroot],
-            ['vendor', $this->overridePath('vendor'), $this->target->root .'/vendor'],
+            ['public', $this->overridePath('public'), $this->target->webroot],
         ] as [$label, $source, $destination])
         {
             if ( ! is_dir($source))
@@ -784,33 +570,6 @@ class Deployer
     }
 
 
-    private function permissions(): void
-    {
-        $target = $this->target;
-        $trees = [$target->root .'/application', $target->root .'/vendor', $target->webroot];
-
-        $command = '';
-
-        foreach ($trees as $tree)
-        {
-            $command .= 'find '. Ssh::quote($tree) .' -type d -exec chmod '
-                . $target->permissions['dir'] .' {} + && ';
-        }
-
-        foreach ($trees as $tree)
-        {
-            $command .= 'find '. Ssh::quote($tree) .' -type f -exec chmod '
-                . $target->permissions['file'] .' {} + && ';
-        }
-
-        $command .= 'if [ -d '. Ssh::quote($target->root .'/application/storage') .' ]; then '
-            .'find '. Ssh::quote($target->root .'/application/storage') .' -type d -exec chmod '
-            . $target->permissions['storage'] .' {} +; fi';
-
-        $this->ssh->must($target, $command);
-    }
-
-
     private function verify(): void
     {
         $target = $this->target;
@@ -857,15 +616,22 @@ class Deployer
         $name = gmdate('Ymd-His');
         $directory = $this->backupDirectory() .'/'. $name;
 
+        $webroot = 'tar -czf '. Ssh::quote($directory .'/webroot.tar.gz');
+
+        foreach ($target->nestedWebroots as $entry)
+        {
+            $webroot .= ' --exclude='. Ssh::quote('./'. $entry);
+        }
+
+        $webroot .= ' -C '. Ssh::quote($target->webroot) .' .';
+
         $this->ssh->must(
             $target,
             'mkdir -p '. Ssh::quote($directory)
             .' && tar -czf '. Ssh::quote($directory .'/root.tar.gz')
             .' -C '. Ssh::quote($target->root)
             .' application vendor'
-            .' && tar -czf '. Ssh::quote($directory .'/webroot.tar.gz')
-            .' -C '. Ssh::quote($target->webroot)
-            .' .',
+            .' && '. $webroot,
         );
 
         $manifest = json_encode(
@@ -873,6 +639,7 @@ class Deployer
                 'target' => $target->name,
                 'root' => $target->root,
                 'webroot' => $target->webroot,
+                'nestedWebroots' => $target->nestedWebroots,
                 'createdAt' => gmdate('c'),
             ],
             JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
@@ -933,25 +700,29 @@ class Deployer
     }
 
 
-    private function restore(string $snapshot): void
+    private function restore(string $timestamp): void
     {
-        if (preg_match('/\A[0-9]{8}-[0-9]{6}\z/', $snapshot) !== 1)
-        {
-            throw new RuntimeException("invalid snapshot: {$snapshot}");
-        }
-
         $target = $this->target;
-        $directory = $this->backupDirectory() .'/'. $snapshot;
+        $directory = $this->backupDirectory() .'/'. $timestamp;
 
         $this->assertSnapshotLayout($directory);
+
+        $delete = 'find '. Ssh::quote($target->webroot) .' -mindepth 1 -maxdepth 1';
+
+        foreach ($target->nestedWebroots as $entry)
+        {
+            $delete .= ' ! -name '. Ssh::quote($entry);
+        }
+
+        $delete .= ' -exec rm -rf {} +';
 
         $this->ssh->must(
             $target,
             'rm -rf '. Ssh::quote($target->root .'/application')
             .' '. Ssh::quote($target->root .'/vendor')
+            .' && '. $delete
             .' && tar -xzf '. Ssh::quote($directory .'/root.tar.gz')
             .' -C '. Ssh::quote($target->root)
-            .' && find '. Ssh::quote($target->webroot) .' -mindepth 1 -maxdepth 1 -exec rm -rf {} +'
             .' && tar -xzf '. Ssh::quote($directory .'/webroot.tar.gz')
             .' -C '. Ssh::quote($target->webroot),
         );
@@ -989,39 +760,6 @@ class Deployer
             || ($manifest['webroot'] ?? null) !== $this->target->webroot)
         {
             throw new RuntimeException('snapshot layout does not match the current target');
-        }
-    }
-
-
-    /**
-     * @param array<string, mixed> $env
-     */
-    private function writeEnv(array $env): void
-    {
-        $target = $this->target;
-        $path = $target->root .'/application/env.json';
-        $temporary = $target->root .'/application/.env.json.tmp-'. bin2hex(random_bytes(4));
-
-        $payload = json_encode(
-            $env,
-            JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-        ) ."\n";
-
-        $result = $this->ssh->must(
-            $target,
-            'cat > '. Ssh::quote($temporary)
-            .' && chmod 600 '. Ssh::quote($temporary)
-            .' && mv '. Ssh::quote($temporary) .' '. Ssh::quote($path)
-            .' && sha256sum '. Ssh::quote($path),
-            $payload,
-        );
-
-        $parts = preg_split('/\s+/', trim($result->stdout));
-        $remoteHash = is_array($parts) ? ($parts[0] ?? '') : '';
-
-        if ( ! hash_equals(hash('sha256', $payload), $remoteHash))
-        {
-            throw new RuntimeException('remote env does not match after write');
         }
     }
 

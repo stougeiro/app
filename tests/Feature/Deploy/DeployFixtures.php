@@ -7,12 +7,16 @@ use Deploy\Target;
 
 final class DeployFixtures
 {
+    /**
+     * @param list<string> $nestedWebroots
+     */
     public static function target(
         string $name = 'staging',
         ?string $identity = null,
         string $root = '/srv/app',
         string $webroot = '/srv/app/public_html',
-        bool $backupEnabled = true,
+        int $backupKeep = 3,
+        array $nestedWebroots = [],
     ): Target {
         return new Target(
             $name,
@@ -23,11 +27,9 @@ final class DeployFixtures
             $webroot,
             $root,
             'https://staging.example.com',
-            ['/uploads/***'],
-            ['dir' => '755', 'file' => '644', 'storage' => '775'],
-            $backupEnabled,
-            3,
-            false,
+            ['/.well-known/***'],
+            $backupKeep,
+            $nestedWebroots,
         );
     }
 }

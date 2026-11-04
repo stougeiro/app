@@ -8,7 +8,7 @@
 A small PHP 8.2 application foundation for shared hosting.
 
 The application runs on Apache with PHP-FPM/mod_php and follows the shared-hosting
-layout: the application lives outside the public directory, while `public_html`
+layout: the application lives outside the public directory, while `public`
 contains only the front controller, `.htaccess` and public assets.
 
 It is built on `stougeiro/base`, `stougeiro/base-contract`, `stougeiro/router`,
@@ -25,7 +25,7 @@ used by agents and contributors.
 
 ## ✨ Features
 
-- **Shared-hosting layout**: application in `application/`, web root in `public_html/`.
+- **Shared-hosting layout**: application in `application/`, web root in `public/`.
 - **Explicit wiring**: providers in `provider/`, modules in `app/`.
 - **Module example**: HelloWorld controller, view and middlewares.
 - **Error handling**: separate development and production error pages.
@@ -39,7 +39,7 @@ used by agents and contributors.
 - **Docker development**: PHP 8.2 + Apache with the vendor directory kept inside
   the image.
 - **Deploy CLI**: repeatable SSH deploys with per-target layout, overrides,
-  maintenance mode, remote backups, rollback and plan gating.
+  maintenance mode, automatic backups and rollback.
 - **Quality tooling**: PHPStan Level 9 and a Pest suite.
 
 ---
@@ -83,12 +83,12 @@ composer install --no-dev --optimize-autoloader
 │   ├── core/         app-level foundations
 │   ├── database/     database-facing code
 │   ├── provider/     service providers
-│   └── storage/      cache, logs, sessions and temporary files
+│   └── storage/      cache, logs, sessions, uploads and temporary files
 ├── deploy            deploy shim
 ├── tools/deploy/     deploy tool source
 ├── deploy.json       local deploy configuration (not versioned)
 ├── .deploy/          local deploy state and secrets (not versioned)
-├── public_html/      document root
+├── public/           document root
 ├── tests/            Pest tests
 ├── vendor/           Composer dependencies
 ├── composer.json
@@ -98,7 +98,7 @@ composer install --no-dev --optimize-autoloader
 ```
 
 The application must never be exposed through the web server. The document root
-is `public_html`.
+is `public`.
 
 ---
 
@@ -178,7 +178,7 @@ Open:
 http://localhost/
 ```
 
-The development container uses PHP 8.2 + Apache, serves `public_html` as the
+The development container uses PHP 8.2 + Apache, serves `public` as the
 document root, keeps `vendor/` inside the image and bind-mounts `application/`
 for real-time code and log inspection.
 
@@ -195,8 +195,8 @@ It keeps the application runtime independent from deployment concerns.
 ```bash
 ./deploy init
 ./deploy check --target=staging
-./deploy plan --target=staging
 ./deploy push --target=staging
+./deploy rollback --target=staging --list
 ```
 
 Targets are declared in `deploy.json`, with separate `root` and `webroot` paths,
@@ -213,17 +213,17 @@ The manual upload flow below remains valid when the deploy CLI is not used.
 
 ```text
 application/   -> application directory outside the web root
-public_html/   -> web root
+public/        -> contents go to the document root (often public_html)
 vendor/        -> Composer dependencies outside the web root
 ```
 
 Steps:
 
 1. install dependencies externally with `--no-dev`;
-2. upload `application/`, `public_html/` and `vendor/` to the server;
+2. upload `application/`, `public/` and `vendor/` to the server;
 3. create `application/env.json`;
 4. make `application/storage` writable by the application user;
-5. point the document root to `public_html`.
+5. point the document root to the uploaded `public` contents (often `public_html`).
 
 On shared hosting, Apache access/error logs and HTTP-level rate limiting usually
 belong to the provider. Application logs remain under `application/storage/log`.

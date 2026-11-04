@@ -12,10 +12,10 @@ Read `ARCHITECTURE.md` before changing code.
 - Keep application-local modules in `application/modules`.
 - Keep service wiring in `application/provider`.
 - Keep global policy in `application/config`.
-- Keep only the entrypoint and public assets in `public_html`.
+- Keep only the entrypoint and public assets in `public`.
 - Keep the deploy shim at `./deploy` and deploy source in `tools/deploy`.
 - Read `DEPLOY.md` before changing deployment behavior.
-- Treat `application/*` and `public_html/*` as the normal application change scope.
+- Treat `application/*` and `public/*` as the normal application change scope.
 - Treat `./deploy` and `tools/deploy` as out of scope. Use them only when
   explicitly requested; do not modify them without explicit permission.
 
@@ -34,7 +34,7 @@ Read `ARCHITECTURE.md` before changing code.
 | Routes | `application/modules/<Module>/Config/routes.php` |
 | Controller | `application/modules/<Module>/Controller` |
 | View | `application/modules/<Module>/View` |
-| Public CSS/assets | `public_html/assets` |
+| Public CSS/assets | `public/assets` |
 | Configuration | `application/config` |
 | Tests | `tests` |
 | Deploy CLI source | `tools/deploy` |
@@ -72,7 +72,7 @@ Read `ARCHITECTURE.md` before changing code.
 - `CsrfMiddleware` and `RateLimitMiddleware` are opt-in per module/controller.
   Defaults live in `application/config/security.php`.
 - CSP uses `style-src 'self'`. Do not add inline `<style>` or inline styles.
-  Put public CSS under `public_html/assets`.
+  Put public CSS under `public/assets`.
 - Auth is not part of the current core. Do not add auth middleware or auth
   services unless the task explicitly asks for the Auth module.
 
@@ -97,16 +97,15 @@ Read `ARCHITECTURE.md` before changing code.
 ## Deploy
 
 - Read `DEPLOY.md` before using or configuring the deploy tool.
-- The normal change scope is `application/*` and `public_html/*`.
+- The normal change scope is `application/*` and `public/*`.
 - `./deploy` and `tools/deploy` are consumer tooling. Do not modify them unless
   the task explicitly requests it and the user grants permission.
 - Keep the executable shim at `./deploy` and the source in `tools/deploy`.
 - The deploy tool is repository tooling. Do not require it from `application/`,
   providers or modules.
 - Do not upload `tools/deploy/` to the server. A deploy transfers only
-  `application/`, `public_html/` and `vendor/`.
-- Do not commit `deploy.json`, `.deploy/`, environment files, plans, backups or
-  SSH keys.
+  `application/`, `public/` and `vendor/`.
+- Do not commit `deploy.json`, `.deploy/`, environment files or SSH keys.
 - Keep deploy behavior covered by `tests/Feature/Deploy` and entrypoint behavior
   covered by `tests/Feature/EntrypointTest.php`.
 - Use `./deploy help` or `./deploy --local help` to validate the shim.
@@ -154,8 +153,8 @@ Docker-only paths or Apache vhost edits.
 - Expose `application/` through the web server.
 - Add inline CSS or scripts under the current CSP.
 - Treat Docker as a production requirement.
-- Commit deploy secrets, environment values, plans or SSH keys.
-- Put deploy source under `public_html` or require it from the runtime.
+- Commit deploy secrets, environment values or SSH keys.
+- Put deploy source under `public` or require it from the runtime.
 - Modify `./deploy` or `tools/deploy` without explicit permission.
 - Add abstractions without a real second use case.
 - Suppress errors or logs without an explicit operational reason.

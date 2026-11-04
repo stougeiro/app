@@ -89,7 +89,8 @@ class Config
             $config->targets[$name] = self::buildTarget($name, $merged, $root);
         }
 
-        self::assertProductionUniqueness($config->targets);
+        self::assertUniqueAddresses($config->targets);
+        $config->targets = self::withNestedWebroots($config->targets);
 
         return $config;
     }
@@ -175,29 +176,8 @@ class Config
             throw new RuntimeException("config: target '{$name}' has an invalid SSH port");
         }
 
-        $webroot = rtrim(self::requireString($data, 'webroot'), '/');
-
-        if ( ! str_starts_with($webroot, '/'))
-        {
-            throw new RuntimeException("config: target '{$name}' requires an absolute 'webroot'");
-        }
-
-        if ($webroot === '/')
-        {
-            throw new RuntimeException("config: target '{$name}' has a root-level 'webroot'");
-        }
-
-        $rootDirectory = rtrim(self::requireString($data, 'root'), '/');
-
-        if ( ! str_starts_with($rootDirectory, '/'))
-        {
-            throw new RuntimeException("config: target '{$name}' requires an absolute 'root'");
-        }
-
-        if ($rootDirectory === '/')
-        {
-            throw new RuntimeException("config: target '{$name}' has a root-level 'root'");
-        }
+        $webroot = self::path($name, 'webroot', self::requireString($data, 'webroot'));
+        $rootDirectory = self::rootPath($name, $data['root'] ?? null);
 
         if ($rootDirectory === $webroot)
         {
@@ -233,9 +213,7 @@ class Config
             }
         }
 
-        $permissions = self::permissions($data['permissions'] ?? []);
-        $backup = self::backup($data['backup'] ?? []);
-        $requiresPlan = self::optionalBool($data, 'requiresPlan', false);
+        $backupKeep = self::backupKeep($data['backup'] ?? []);
 
         return new Target(
             $name,
@@ -247,54 +225,180 @@ class Config
             $rootDirectory,
             $url,
             $preserve,
-            $permissions,
-            $backup['enabled'],
-            $backup['keep'],
-            $requiresPlan,
+            $backupKeep,
         );
+    }
+
+
+    private static function path(string $name, string $key, string $value): string
+    {
+        if ( ! str_starts_with($value, '/'))
+        {
+            throw new RuntimeException("config: target '{$name}' requires an absolute '{$key}'");
+        }
+
+        $path = rtrim($value, '/');
+
+        if ($path === '')
+        {
+            throw new RuntimeException("config: target '{$name}' has a root-level '{$key}'");
+        }
+
+        if (str_contains($path, '\\') || str_contains($path, '~'))
+        {
+            throw new RuntimeException("config: target '{$name}' has an invalid '{$key}'");
+        }
+
+        if (preg_match('#(^|/)\.{1,2}(/|$)#', $path) === 1)
+        {
+            throw new RuntimeException("config: target '{$name}' has a traversal in '{$key}'");
+        }
+
+        return $path;
+    }
+
+
+    private static function rootPath(string $name, mixed $value): string
+    {
+        if ( ! is_array($value))
+        {
+            throw new RuntimeException("config: target '{$name}' requires a 'root' object");
+        }
+
+        $base = self::requireString($value, 'base');
+        $path = self::path($name, 'root.base', $base);
+        $directory = $value['dir'] ?? null;
+
+        if ($directory === null)
+        {
+            return $path;
+        }
+
+        if ( ! is_string($directory) || trim($directory) === '')
+        {
+            throw new RuntimeException("config: 'root.dir' must be a non-empty string");
+        }
+
+        $directory = trim($directory);
+
+        if (
+            $directory === '.'
+            || $directory === '..'
+            || str_contains($directory, '/')
+            || str_contains($directory, '\\')
+            || str_contains($directory, '~')
+        ) {
+            throw new RuntimeException("config: target '{$name}' has an invalid 'root.dir'");
+        }
+
+        return $path .'/'. $directory;
     }
 
 
     /**
      * @param array<string, Target> $targets
      */
-    private static function assertProductionUniqueness(array $targets): void
+    private static function assertUniqueAddresses(array $targets): void
     {
-        $production = $targets['production'] ?? null;
+        $names = array_keys($targets);
 
-        if ($production === null)
+        foreach ($names as $leftIndex => $leftName)
         {
-            return;
+            $left = $targets[$leftName];
+
+            foreach (array_slice($names, $leftIndex + 1) as $rightName)
+            {
+                $right = $targets[$rightName];
+
+                if ( ! self::sameServer($left, $right))
+                {
+                    continue;
+                }
+
+                if ($left->root === $right->root)
+                {
+                    throw new RuntimeException(
+                        "config: targets '{$leftName}' and '{$rightName}' must not share root '{$left->root}' on the same server",
+                    );
+                }
+
+                if ($left->webroot === $right->webroot)
+                {
+                    throw new RuntimeException(
+                        "config: targets '{$leftName}' and '{$rightName}' must not share webroot '{$left->webroot}' on the same server",
+                    );
+                }
+
+                if (self::normalizeUrl($left->url) === self::normalizeUrl($right->url))
+                {
+                    throw new RuntimeException(
+                        "config: targets '{$leftName}' and '{$rightName}' must not share url '{$left->url}' on the same server",
+                    );
+                }
+            }
         }
+    }
+
+
+    /**
+     * @param array<string, Target> $targets
+     * @return array<string, Target>
+     */
+    private static function withNestedWebroots(array $targets): array
+    {
+        $result = [];
 
         foreach ($targets as $name => $target)
         {
-            if ($name === 'production' || ! self::sameServer($production, $target))
+            $nested = [];
+
+            foreach ($targets as $otherName => $other)
             {
-                continue;
+                if ($name === $otherName || ! self::sameServer($target, $other))
+                {
+                    continue;
+                }
+
+                $prefix = $target->webroot .'/';
+
+                if ( ! str_starts_with($other->webroot, $prefix))
+                {
+                    continue;
+                }
+
+                $relative = substr($other->webroot, strlen($prefix));
+
+                if ($relative === '')
+                {
+                    continue;
+                }
+
+                if (str_contains($relative, '/'))
+                {
+                    throw new RuntimeException(
+                        "config: target '{$otherName}' webroot must be a direct child of '{$name}' webroot or outside it",
+                    );
+                }
+
+                $nested[] = $relative;
             }
 
-            if (self::normalizeUrl($target->url) === self::normalizeUrl($production->url))
-            {
-                throw new RuntimeException(
-                    "config: target '{$name}' must not reuse production url '{$target->url}' on the same server",
-                );
-            }
-
-            if ($target->root === $production->root)
-            {
-                throw new RuntimeException(
-                    "config: target '{$name}' must not reuse production root '{$target->root}' on the same server",
-                );
-            }
-
-            if ($target->webroot === $production->webroot)
-            {
-                throw new RuntimeException(
-                    "config: target '{$name}' must not reuse production webroot '{$target->webroot}' on the same server",
-                );
-            }
+            $result[$name] = new Target(
+                $target->name,
+                $target->sshHost,
+                $target->sshUser,
+                $target->sshPort,
+                $target->sshIdentity,
+                $target->webroot,
+                $target->root,
+                $target->url,
+                $target->preserve,
+                $target->backupKeep,
+                array_values(array_unique($nested)),
+            );
         }
+
+        return $result;
     }
 
 
@@ -433,22 +537,6 @@ class Config
 
 
     /**
-     * @param array<array-key, mixed> $data
-     */
-    private static function optionalBool(array $data, string $key, bool $default): bool
-    {
-        $value = $data[$key] ?? $default;
-
-        if ( ! is_bool($value))
-        {
-            throw new RuntimeException("config: '{$key}' must be a boolean");
-        }
-
-        return $value;
-    }
-
-
-    /**
      * @return list<string>
      */
     private static function stringList(mixed $value): array
@@ -474,58 +562,20 @@ class Config
     }
 
 
-    /**
-     * @return array{dir:string,file:string,storage:string}
-     */
-    private static function permissions(mixed $value): array
-    {
-        if ( ! is_array($value))
-        {
-            throw new RuntimeException("config: 'permissions' must be an object");
-        }
-
-        return [
-            'dir' => self::permission($value['dir'] ?? '755', 'permissions.dir'),
-            'file' => self::permission($value['file'] ?? '644', 'permissions.file'),
-            'storage' => self::permission($value['storage'] ?? '775', 'permissions.storage'),
-        ];
-    }
-
-
-    private static function permission(mixed $value, string $key): string
-    {
-        if ( ! is_string($value) || preg_match('/\A[0-7]{3,4}\z/', $value) !== 1)
-        {
-            throw new RuntimeException("config: '{$key}' must be octal (e.g. 755)");
-        }
-
-        return $value;
-    }
-
-
-    /**
-     * @return array{enabled:bool,keep:int}
-     */
-    private static function backup(mixed $value): array
+    private static function backupKeep(mixed $value): int
     {
         if ( ! is_array($value))
         {
             throw new RuntimeException("config: 'backup' must be an object");
         }
 
-        $enabled = $value['enabled'] ?? true;
         $keep = $value['keep'] ?? 3;
-
-        if ( ! is_bool($enabled))
-        {
-            throw new RuntimeException("config: 'backup.enabled' must be a boolean");
-        }
 
         if ( ! is_int($keep) || $keep < 1)
         {
             throw new RuntimeException("config: 'backup.keep' must be an integer >= 1");
         }
 
-        return ['enabled' => $enabled, 'keep' => $keep];
+        return $keep;
     }
 }

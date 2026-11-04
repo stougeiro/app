@@ -11,10 +11,10 @@ function entrypointTempRoot(?string $bootstrap = null): string
 {
     $project = entrypointProjectRoot();
     $root = sys_get_temp_dir() . '/entrypoint_'. uniqid();
-    $public = $root .'/public_html';
+    $public = $root .'/public';
 
     mkdir($public, 0777, true);
-    copy($project .'/public_html/index.php', $public .'/index.php');
+    copy($project .'/public/index.php', $public .'/index.php');
 
     symlink($project .'/vendor', $root .'/vendor');
 
@@ -59,7 +59,7 @@ function entrypointRemoveTree(string $path): void
 
 function entrypointWithServer(string $root, Closure $test): void
 {
-    $server = PhpServer::start($root .'/public_html');
+    $server = PhpServer::start($root .'/public');
 
     try {
         $test($server);
@@ -71,7 +71,7 @@ function entrypointWithServer(string $root, Closure $test): void
 
 test('maintenance mode blocks the application', function () {
     $root = entrypointTempRoot();
-    file_put_contents($root .'/public_html/.maintenance', '');
+    file_put_contents($root .'/public/.maintenance', '');
 
     entrypointWithServer($root, function (PhpServer $server): void {
         $response = $server->get('/');
@@ -87,7 +87,7 @@ test('maintenance mode blocks the application', function () {
 
 test('maintenance mode falls back when the page file is missing', function () {
     $root = entrypointTempRoot();
-    file_put_contents($root .'/public_html/.maintenance', '');
+    file_put_contents($root .'/public/.maintenance', '');
 
     entrypointWithServer($root, function (PhpServer $server): void {
         $response = $server->get('/');
@@ -101,8 +101,8 @@ test('maintenance mode falls back when the page file is missing', function () {
 
 test('maintenance mode serves the static page when present', function () {
     $root = entrypointTempRoot();
-    file_put_contents($root .'/public_html/.maintenance', '');
-    copy(entrypointProjectRoot() .'/public_html/maintenance.html', $root .'/public_html/maintenance.html');
+    file_put_contents($root .'/public/.maintenance', '');
+    copy(entrypointProjectRoot() .'/public/maintenance.html', $root .'/public/maintenance.html');
 
     entrypointWithServer($root, function (PhpServer $server): void {
         $response = $server->get('/');

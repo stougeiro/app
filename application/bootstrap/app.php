@@ -20,5 +20,6 @@ Path::register('cache', 'cache/', 'storage');
 Path::register('log', 'log/', 'storage');
 Path::register('session', 'session/', 'storage');
 Path::register('temp', 'temp/', 'storage');
+Path::register('upload', 'upload/', 'storage');
 
 PhpErrorLog::configure(Path::get('log') .'php-error-'. date('Ymd') .'.log');

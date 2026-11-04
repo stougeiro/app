@@ -5,7 +5,7 @@ commands and operational behavior.
 
 The deploy tool is repository tooling. It is not part of the application
 runtime and must never be uploaded to the server. A deployment copies only
-`application/`, `public_html/` and `vendor/`.
+`application/`, `public/` and `vendor/`.
 
 ## Layout
 
@@ -18,8 +18,11 @@ deploy.json                  local configuration (not versioned)
 .deploy/                     local state and secrets (not versioned)
 ```
 
-`deploy.json` and `.deploy/` are ignored by Git. They contain target addresses,
-environment values and SSH references.
+`deploy.json` and `.deploy/` are ignored by Git. They contain target addresses
+and SSH references.
+
+The local public directory is `public/`. On the server, the target `webroot`
+usually points to `public_html/` or another document root.
 
 ## Requirements
 
@@ -45,10 +48,9 @@ Local mode requires PHP 8.2+, Composer, rsync, ssh, scp, curl and tar.
 Then:
 
 1. edit `deploy.json`;
-2. add `.deploy/env/<target>.json`;
-3. place SSH keys in `.deploy/ssh/` or use keys available under `~/.ssh/`;
-4. add per-target overrides under `.deploy/override/<target>/`;
-5. validate the connection:
+2. place SSH keys in `.deploy/ssh/` or use keys available under `~/.ssh/`;
+3. add per-target overrides under `.deploy/override/<target>/`;
+4. validate the connection:
 
 ```bash
 ./deploy check --target=staging
@@ -57,22 +59,7 @@ Then:
 Deploy:
 
 ```bash
-./deploy plan --target=staging
 ./deploy push --target=staging
-```
-
-Production commonly requires an explicit plan:
-
-```bash
-./deploy plan --target=production
-./deploy push --target=production
-```
-
-When the environment changes too:
-
-```bash
-./deploy plan --target=production --with-env
-./deploy push --target=production --with-env
 ```
 
 ## Targets
@@ -84,48 +71,34 @@ When the environment changes too:
 {
   "defaults": {
     "ssh": {
+      "host": "example.com",
       "port": 22,
+      "user": "deploy",
       "identity": ".deploy/ssh/deploy_ed25519"
     },
-    "permissions": {
-      "dir": "755",
-      "file": "644",
-      "storage": "775"
+    "root": {
+      "base": "/home/deploy/domains/example.com"
     },
+    "preserve": [
+      "/.well-known/***"
+    ],
     "backup": {
-      "enabled": true,
       "keep": 3
-    },
-    "requiresPlan": false
+    }
   },
   "targets": {
     "staging": {
-      "ssh": {
-        "host": "staging.example.com",
-        "user": "deploy"
+      "root": {
+        "dir": "staging"
       },
-      "root": "/home/deploy/staging",
-      "webroot": "/home/deploy/public_html/staging",
+      "webroot": "/home/deploy/domains/example.com/public_html/staging",
       "url": "https://staging.example.com"
     },
     "production": {
-      "ssh": {
-        "host": "example.com",
-        "user": "deploy",
-        "identity": ".deploy/ssh/production_ed25519"
-      },
-      "root": "/home/deploy/app",
-      "webroot": "/home/deploy/public_html",
+      "webroot": "/home/deploy/domains/example.com/public_html",
       "url": "https://example.com",
-      "requiresPlan": true,
-      "preserve": [
-        "/uploads/***",
-        "/.well-known/***",
-        "/staging/***",
-        "/development/***"
-      ],
       "backup": {
-        "keep": 10
+        "keep": 5
       }
     }
   }
@@ -140,80 +113,57 @@ When the environment changes too:
 | `ssh.user` | SSH user |
 | `ssh.port` | SSH port, default `22`, valid `1..65535` |
 | `ssh.identity` | SSH key; absolute, `~/...`, or relative to the project root |
+| `root.base` | Absolute base directory used to build the remote root |
+| `root.dir` | Optional single directory name appended to `root.base` |
 | `root` | Remote directory that receives `application/` and `vendor/` |
-| `webroot` | Remote directory that receives the contents of `public_html/` |
+| `webroot` | Absolute remote directory that receives the contents of `public/` |
 | `url` | Public application URL used by verification |
 | `preserve` | Webroot paths protected from deletion during transfer |
-| `permissions.dir` | Directory mode |
-| `permissions.file` | File mode |
-| `permissions.storage` | Storage directory mode |
-| `backup.enabled` | Enables remote snapshots before deploy |
-| `backup.keep` | Number of remote snapshots to keep |
-| `requiresPlan` | Requires a matching `plan` before `push` |
+| `backup.keep` | Number of remote backups to keep; default `3`, minimum `1` |
 
-`root` and `webroot` must be absolute paths. They must differ, and `root` must
-not be inside `webroot`.
-
-### Same server, different environments
-
-Dev, staging and production may share the same SSH host, user and port as long
-as each target uses its own `root`, `webroot` and `url`. On the same server,
-production must not reuse the `url`, `root` or `webroot` of another target.
-
-Example:
+`root` is an object:
 
 ```json
-"targets": {
-  "development": {
-    "root": "/home/deploy/development",
-    "webroot": "/home/deploy/public_html/development",
-    "url": "https://dev.example.com"
-  },
-  "staging": {
-    "root": "/home/deploy/staging",
-    "webroot": "/home/deploy/public_html/staging",
-    "url": "https://staging.example.com"
-  },
-  "production": {
-    "root": "/home/deploy/app",
-    "webroot": "/home/deploy/public_html",
-    "url": "https://example.com"
-  }
+"root": {
+  "base": "/home/deploy/domains/example.com",
+  "dir": "staging"
 }
 ```
 
-### Nested webroots
+The final root is `base + "/" + dir`, or just `base` when `dir` is omitted.
+`root.base` and `webroot` must be absolute paths. `root` and `webroot` must
+differ, and `root` must not be inside its own `webroot`.
 
-When `dirname(webroot)` is not `root`, the entrypoint needs an absolute require
-for the target root. The deploy `check` warns when the override is missing:
+Relative paths, `.`/`..` segments, `~` and backslashes are rejected.
+
+`root.dir` must be a single directory segment. Slashes, `.`, `..`, `~` and
+backslashes are rejected.
+
+No directory is created automatically. If `root.base`, the final root or the
+webroot does not exist on the server, `check` and `push` fail.
+
+## Same server and target isolation
+
+Targets on the same SSH host and port must not share the final `root`,
+`webroot` or `url`. Production is the reference: no target may reuse its paths
+or URL.
+
+Nesting is allowed because shared hosting often serves subdomains from folders
+inside `public_html`:
 
 ```text
-.deploy/override/<target>/public_html/index.php
+production.webroot = /home/deploy/domains/example.com/public_html
+development.webroot = /home/deploy/domains/example.com/public_html/dev
 ```
 
-The override is applied after the build, mirroring the target layout.
+When a target webroot contains another target webroot:
 
-## Environment files
+- the child must be a **direct child** (`/public_html/dev`);
+- the parent excludes the child from transfers;
+- the parent excludes the child from backups;
+- rollback of the parent never deletes the child.
 
-Environment values live in:
-
-```text
-.deploy/env/<target>.json
-```
-
-The file must declare the matching environment:
-
-```json
-{
-  "environment": "staging",
-  "APP_KEY": "..."
-}
-```
-
-`push --with-env` writes the environment to `root/application/env.json` and
-verifies the remote hash after writing.
-
-Environment files and SSH keys are secrets. They must not be committed.
+Deeper nesting is rejected.
 
 ## Overrides
 
@@ -222,59 +172,74 @@ Per-target overrides live under:
 ```text
 .deploy/override/<target>/
 ├── application/
-├── public_html/
-└── vendor/
+└── public/
 ```
 
 They are applied after the build:
 
-- `application/` and `vendor/` are mirrored into `root`;
-- `public_html/` is mirrored into `webroot`.
+- `application/` is mirrored into `root`;
+- `public/` is mirrored into `webroot`.
+
+`vendor/` is always the Composer build and never receives overrides.
 
 Override transfers never use `--delete`; they only add or replace files.
+
+Environment values belong in an override:
+
+```text
+.deploy/override/production/application/env.json
+```
+
+No environment file is managed by the deploy tool.
+
+## Uploads
+
+Application uploads belong to:
+
+```text
+application/storage/upload/
+```
+
+`application/storage` is excluded from the application transfer, so uploads
+remain untouched during `push`. They are included in remote backups and
+restored by `rollback`.
 
 ## Commands
 
 | Command | Purpose |
 |---|---|
 | `./deploy init` | Creates `.deploy/` directories and copies the example to `deploy.json` |
-| `./deploy check --target=<name>` | Verifies SSH, remote PHP, rsync availability, remote env and layout |
-| `./deploy plan --target=<name> [--with-env]` | Records the source, target and env hashes in `.deploy/plans/<target>.json` |
-| `./deploy push --target=<name> [--with-env]` | Builds vendor, transfers, verifies and consumes the plan |
-| `./deploy maintenance --target=<name>` | Reports the remote maintenance marker and HTTP status |
-| `./deploy rollback --target=<name> [--backup=<timestamp>]` | Restores a remote snapshot; latest when omitted |
+| `./deploy check --target=<name>` | Verifies SSH, writable paths, storage and transport |
+| `./deploy push --target=<name>` | Builds vendor, backs up, transfers, verifies and prunes backups |
+| `./deploy rollback --target=<name> --list` | Lists backups for the target |
+| `./deploy rollback --target=<name> [--timestamp=<Ymd-His>]` | Restores a backup; latest when omitted |
 
-`init` does not accept `--target`. `plan` and `push` accept `--with-env`.
-`rollback` accepts `--backup`.
+`init` does not accept `--target`. `--list` and `--timestamp` are only valid for
+`rollback` and cannot be used together.
 
 ## Push behavior
 
 A push:
 
 1. validates the target;
-2. reads and validates the remote environment;
+2. checks SSH, paths, storage and transport;
 3. builds vendor with `composer install --no-dev --classmap-authoritative`;
 4. enables maintenance;
-5. creates a remote snapshot when backups are enabled;
-6. writes the environment when requested;
-7. transfers `application/`, `public_html/` and `vendor/`;
-8. applies permissions and overrides;
-9. disables maintenance;
-10. verifies `GET url` returns `200` and `GET url/missing` returns `404`;
-11. prunes old snapshots and consumes the plan.
+5. creates a remote backup of the current state;
+6. transfers `application/`, `public/` and `vendor/`;
+7. applies overrides;
+8. disables maintenance;
+9. verifies `GET url` returns `200` and `GET url/missing` returns `404`;
+10. prunes old backups.
 
-On failure, the push attempts to re-enable maintenance and restore the snapshot.
-If no snapshot exists, maintenance remains active. Rollback failures are
-reported and maintenance is not disabled.
+On failure, the push re-enables maintenance, restores the backup created at the
+start and verifies again. If the restore fails, maintenance remains active.
 
 ## Maintenance
 
-Maintenance is controlled by a `.maintenance` marker in the webroot. When the
-marker exists, `public_html/index.php` returns `503` with `Retry-After` and does
-not boot the application.
-
-The deploy tool enables maintenance before changing the application and
-disables it only after verification succeeds.
+Maintenance is controlled by a `.maintenance` marker in the target webroot.
+When the marker exists, `public/index.php` returns `503` with `Retry-After` and
+does not boot the application.
 
 ## Backups and rollback
 
@@ -287,8 +252,21 @@ root/.deploy/backups/<target>/<Ymd-His>/
 └── manifest.json
 ```
 
-Snapshots are never copied to the local machine. `rollback` validates the
-snapshot name, manifest and target layout before restoring.
+`root.tar.gz` contains `application/` and `vendor/`. `webroot.tar.gz` contains
+the target webroot, excluding direct child webroots of other targets.
+
+`rollback --list` prints available backups, newest first. With `--timestamp`,
+the matching backup is restored. Without it, the newest backup is used.
+
+Rollback:
+
+1. checks the target;
+2. enables maintenance;
+3. removes `application/`, `vendor/` and the target webroot contents;
+4. preserves direct child webroots;
+5. extracts the backup;
+6. disables maintenance;
+7. verifies `200` and `404`.
 
 ## Verification and tests
 
@@ -302,6 +280,6 @@ composer cover:deploy
 ```
 
 The deploy test suite lives in `tests/Feature/Deploy` and covers configuration,
-environment files, plans, SSH, shell, maintenance and deployer push/rollback.
+target isolation, SSH, shell, maintenance, push, backups and rollback.
 Entrypoint behavior under maintenance and fallback is covered by
 `tests/Feature/EntrypointTest.php`.

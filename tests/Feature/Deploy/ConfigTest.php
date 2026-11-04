@@ -3,7 +3,6 @@
 use Deploy\Config;
 
 
-
 /**
  * @param array<string, mixed> $data
  */
@@ -23,6 +22,22 @@ function deployConfigFile(array $data): string
 
 
 /**
+ * @return array{base:string, dir?:string}
+ */
+function deployRoot(string $base, ?string $dir = null): array
+{
+    $root = ['base' => $base];
+
+    if ($dir !== null)
+    {
+        $root['dir'] = $dir;
+    }
+
+    return $root;
+}
+
+
+/**
  * @param array<string, mixed> $overrides
  * @return array<string, mixed>
  */
@@ -30,7 +45,7 @@ function deployConfigTarget(array $overrides = []): array
 {
     return array_replace([
         'ssh' => ['host' => 'app.example.com', 'user' => 'deploy'],
-        'root' => '/srv/app',
+        'root' => deployRoot('/srv/app'),
         'webroot' => '/srv/app/public_html',
         'url' => 'https://app.example.com',
     ], $overrides);
@@ -53,11 +68,7 @@ test('loads defaults, explicit root and applies deep merge', function () {
                 'port' => 2222,
                 'identity' => '~/.ssh/id_ed25519',
             ],
-            'preserve' => ['/uploads/***'],
-            'permissions' => [
-                'dir' => '750',
-                'storage' => '770',
-            ],
+            'preserve' => ['/.well-known/***'],
             'backup' => [
                 'keep' => 5,
             ],
@@ -68,7 +79,7 @@ test('loads defaults, explicit root and applies deep merge', function () {
                     'host' => 'staging.example.com',
                     'user' => 'deploy',
                 ],
-                'root' => '/srv/staging.example.com/app/',
+                'root' => deployRoot('/srv/staging.example.com/app/'),
                 'webroot' => '/srv/staging.example.com/public_html/',
                 'url' => 'https://staging.example.com',
             ],
@@ -85,228 +96,215 @@ test('loads defaults, explicit root and applies deep merge', function () {
         ->and($target->webroot)->toBe('/srv/staging.example.com/public_html')
         ->and($target->root)->toBe('/srv/staging.example.com/app')
         ->and($target->url)->toBe('https://staging.example.com')
-        ->and($target->preserve)->toBe(['/uploads/***'])
-        ->and($target->permissions)->toBe(['dir' => '750', 'file' => '644', 'storage' => '770'])
-        ->and($target->backupEnabled)->toBeTrue()
+        ->and($target->preserve)->toBe(['/.well-known/***'])
         ->and($target->backupKeep)->toBe(5)
-        ->and($target->requiresPlan)->toBeFalse();
+        ->and($target->nestedWebroots)->toBe([]);
 });
 
 
-test('production can require a plan and custom backup', function () {
+test('builds the root from base and dir', function () {
+    $config = Config::load(deployConfigWithTarget(deployConfigTarget([
+        'root' => deployRoot('/srv/domain', 'development'),
+    ])));
+
+    expect($config->target('staging')->root)->toBe('/srv/domain/development');
+});
+
+
+test('merges a target root dir with the default root base', function () {
     $config = Config::load(deployConfigFile([
+        'defaults' => [
+            'root' => deployRoot('/srv/domain'),
+        ],
         'targets' => [
-            'production' => [
-                'ssh' => [
-                    'host' => 'example.com',
-                    'user' => 'deploy',
-                ],
-                'root' => '/srv/example.com/app',
-                'webroot' => '/srv/example.com/public_html',
-                'url' => 'https://example.com',
-                'requiresPlan' => true,
-                'backup' => [
-                    'keep' => 10,
-                ],
-            ],
+            'development' => deployConfigTarget([
+                'root' => ['dir' => 'development'],
+            ]),
         ],
     ]));
 
-    $target = $config->target('production');
+    expect($config->target('development')->root)->toBe('/srv/domain/development');
+});
 
-    expect($target->requiresPlan)->toBeTrue()
-        ->and($target->backupKeep)->toBe(10)
-        ->and($target->backupEnabled)->toBeTrue();
+
+test('rejects root as a string', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'root' => '/srv/app',
+    ]))))->toThrow(RuntimeException::class, "requires a 'root' object");
+});
+
+
+test('rejects root without a base', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'root' => [],
+    ]))))->toThrow(RuntimeException::class, "'base' must be a non-empty string");
+});
+
+
+test('rejects invalid root dir', function () {
+    foreach (['.', '..', 'dev/app', 'dev\\app', '~dev'] as $dir)
+    {
+        expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+            'root' => deployRoot('/srv/domain', $dir),
+        ]))))->toThrow(RuntimeException::class, "invalid 'root.dir'");
+    }
+});
+
+
+test('applies per-target backup keep', function () {
+    $config = Config::load(deployConfigFile([
+        'defaults' => ['backup' => ['keep' => 3]],
+        'targets' => [
+            'production' => deployConfigTarget([
+                'backup' => ['keep' => 10],
+            ]),
+        ],
+    ]));
+
+    expect($config->target('production')->backupKeep)->toBe(10);
+});
+
+
+test('defaults backup keep to three', function () {
+    $config = Config::load(deployConfigWithTarget(deployConfigTarget()));
+
+    expect($config->target('staging')->backupKeep)->toBe(3);
 });
 
 
 test('rejects targets outside known environments', function () {
     expect(fn () => Config::load(deployConfigFile([
         'targets' => [
-            'homolog' => [
-                'ssh' => ['host' => 'h', 'user' => 'u'],
-                'root' => '/srv/app',
-                'webroot' => '/srv/app/public_html',
-                'url' => 'https://app.example.com',
-            ],
+            'homolog' => deployConfigTarget(),
         ],
     ])))->toThrow(RuntimeException::class, 'invalid target');
 });
 
 
 test('rejects a relative webroot', function () {
-    expect(fn () => Config::load(deployConfigFile([
-        'targets' => [
-            'staging' => [
-                'ssh' => ['host' => 'h', 'user' => 'u'],
-                'root' => '/srv/app',
-                'webroot' => 'public_html',
-                'url' => 'https://app.example.com',
-            ],
-        ],
-    ])))->toThrow(RuntimeException::class, 'webroot');
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'webroot' => 'public_html',
+    ]))))->toThrow(RuntimeException::class, 'webroot');
 });
 
 
 test('rejects a relative root', function () {
-    expect(fn () => Config::load(deployConfigFile([
-        'targets' => [
-            'staging' => [
-                'ssh' => ['host' => 'h', 'user' => 'u'],
-                'root' => 'app',
-                'webroot' => '/srv/app/public_html',
-                'url' => 'https://app.example.com',
-            ],
-        ],
-    ])))->toThrow(RuntimeException::class, 'root');
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'root' => deployRoot('app'),
+    ]))))->toThrow(RuntimeException::class, 'root');
+});
+
+
+test('rejects path traversal in root or webroot', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'root' => deployRoot('/srv/app/../other'),
+    ]))))->toThrow(RuntimeException::class, 'traversal');
+
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'webroot' => '/srv/app/./public_html',
+    ]))))->toThrow(RuntimeException::class, 'traversal');
+});
+
+
+test('rejects backslashes and tildes in paths', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'root' => deployRoot('/srv/app\\code'),
+    ]))))->toThrow(RuntimeException::class, 'invalid');
+
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'webroot' => '/srv/~/public_html',
+    ]))))->toThrow(RuntimeException::class, 'invalid');
 });
 
 
 test('rejects the same root and webroot', function () {
-    expect(fn () => Config::load(deployConfigFile([
-        'targets' => [
-            'staging' => [
-                'ssh' => ['host' => 'h', 'user' => 'u'],
-                'root' => '/srv/app',
-                'webroot' => '/srv/app',
-                'url' => 'https://app.example.com',
-            ],
-        ],
-    ])))->toThrow(RuntimeException::class, 'same');
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'root' => deployRoot('/srv/app'),
+        'webroot' => '/srv/app',
+    ]))))->toThrow(RuntimeException::class, 'same');
 });
 
 
 test('rejects a root inside the webroot', function () {
-    expect(fn () => Config::load(deployConfigFile([
-        'targets' => [
-            'staging' => [
-                'ssh' => ['host' => 'h', 'user' => 'u'],
-                'root' => '/srv/app/public_html/code',
-                'webroot' => '/srv/app/public_html',
-                'url' => 'https://app.example.com',
-            ],
-        ],
-    ])))->toThrow(RuntimeException::class, 'inside');
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'root' => deployRoot('/srv/app/public_html/code'),
+        'webroot' => '/srv/app/public_html',
+    ]))))->toThrow(RuntimeException::class, 'inside');
+});
+
+
+test('allows a webroot inside the root', function () {
+    $config = Config::load(deployConfigWithTarget(deployConfigTarget([
+        'root' => deployRoot('/srv/app'),
+        'webroot' => '/srv/app/public_html',
+    ])));
+
+    expect($config->target('staging')->webroot)->toBe('/srv/app/public_html');
 });
 
 
 test('rejects preserve without a leading slash', function () {
-    expect(fn () => Config::load(deployConfigFile([
-        'targets' => [
-            'staging' => [
-                'ssh' => ['host' => 'h', 'user' => 'u'],
-                'root' => '/srv/app',
-                'webroot' => '/srv/app/public_html',
-                'url' => 'https://app.example.com',
-                'preserve' => ['uploads/***'],
-            ],
-        ],
-    ])))->toThrow(RuntimeException::class, 'invalid preserve');
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'preserve' => ['well-known/***'],
+    ]))))->toThrow(RuntimeException::class, 'invalid preserve');
 });
 
 
-test('rejects a non-octal permission', function () {
-    expect(fn () => Config::load(deployConfigFile([
-        'targets' => [
-            'staging' => [
-                'ssh' => ['host' => 'h', 'user' => 'u'],
-                'root' => '/srv/app',
-                'webroot' => '/srv/app/public_html',
-                'url' => 'https://app.example.com',
-                'permissions' => ['dir' => 'rwx'],
-            ],
-        ],
-    ])))->toThrow(RuntimeException::class, 'octal');
+test('rejects a preserve value that is not a list', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'preserve' => 'invalid',
+    ]))))->toThrow(RuntimeException::class, 'invalid list');
+});
+
+
+test('rejects a preserve item that is not a string', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'preserve' => [1],
+    ]))))->toThrow(RuntimeException::class, 'list item must be a string');
 });
 
 
 test('resolves a relative ssh identity against the config root', function () {
-    $file = deployConfigFile([
-        'targets' => [
-            'staging' => [
-                'ssh' => [
-                    'host' => 'h',
-                    'user' => 'u',
-                    'identity' => '.deploy/ssh/production_ed25519',
-                ],
-                'root' => '/srv/app',
-                'webroot' => '/srv/app/public_html',
-                'url' => 'https://app.example.com',
-            ],
-        ],
-    ]);
+    $file = deployConfigWithTarget(deployConfigTarget([
+        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'identity' => '.deploy/ssh/key'],
+    ]));
 
-    $target = Config::load($file)->target('staging');
-    $root = realpath(dirname($file));
-
-    expect($target->sshIdentity)->toBe($root .'/.deploy/ssh/production_ed25519');
+    expect(Config::load($file)->target('staging')->sshIdentity)
+        ->toBe(dirname($file) .'/.deploy/ssh/key');
 });
 
 
 test('keeps absolute and home-relative ssh identities unchanged', function () {
-    $config = Config::load(deployConfigFile([
-        'targets' => [
-            'staging' => [
-                'ssh' => [
-                    'host' => 'h',
-                    'user' => 'u',
-                    'identity' => '/opt/keys/deploy_ed25519',
-                ],
-                'root' => '/srv/app',
-                'webroot' => '/srv/app/public_html',
-                'url' => 'https://app.example.com',
-            ],
-            'production' => [
-                'ssh' => [
-                    'host' => 'h',
-                    'user' => 'u',
-                    'identity' => '~/.ssh/deploy_ed25519',
-                ],
-                'root' => '/srv/production',
-                'webroot' => '/srv/public_html',
-                'url' => 'https://example.com',
-            ],
-        ],
-    ]));
+    expect(Config::load(deployConfigWithTarget(deployConfigTarget([
+        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'identity' => '/home/deploy/.ssh/key'],
+    ])))->target('staging')->sshIdentity)->toBe('/home/deploy/.ssh/key');
 
-    expect($config->target('staging')->sshIdentity)->toBe('/opt/keys/deploy_ed25519')
-        ->and($config->target('production')->sshIdentity)->toBe('~/.ssh/deploy_ed25519');
+    expect(Config::load(deployConfigWithTarget(deployConfigTarget([
+        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'identity' => '~/.ssh/key'],
+    ])))->target('staging')->sshIdentity)->toBe('~/.ssh/key');
 });
 
 
 test('rejects a relative ssh identity escaping the project root', function () {
-    expect(fn () => Config::load(deployConfigFile([
-        'targets' => [
-            'staging' => [
-                'ssh' => [
-                    'host' => 'h',
-                    'user' => 'u',
-                    'identity' => '../../outside_ed25519',
-                ],
-                'root' => '/srv/app',
-                'webroot' => '/srv/app/public_html',
-                'url' => 'https://app.example.com',
-            ],
-        ],
-    ])))->toThrow(RuntimeException::class, 'escapes project root');
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'identity' => '../key'],
+    ]))))->toThrow(RuntimeException::class, 'escapes project root');
 });
 
 
-test('allows development and staging to share addresses', function () {
+test('allows development and staging to share non-address settings', function () {
     $config = Config::load(deployConfigFile([
         'targets' => [
-            'development' => [
-                'ssh' => ['host' => 'shared.example.com', 'user' => 'deploy'],
-                'root' => '/srv/app',
-                'webroot' => '/srv/app/public_html',
-                'url' => 'https://shared.example.com',
-            ],
-            'staging' => [
-                'ssh' => ['host' => 'shared.example.com', 'user' => 'deploy'],
-                'root' => '/srv/app',
-                'webroot' => '/srv/app/public_html',
-                'url' => 'https://shared.example.com',
-            ],
+            'development' => deployConfigTarget([
+                'root' => deployRoot('/srv/development'),
+                'webroot' => '/srv/public_html/development',
+                'url' => 'https://dev.example.com',
+            ]),
+            'staging' => deployConfigTarget([
+                'root' => deployRoot('/srv/staging'),
+                'webroot' => '/srv/public_html/staging',
+                'url' => 'https://staging.example.com',
+            ]),
         ],
     ]));
 
@@ -314,65 +312,124 @@ test('allows development and staging to share addresses', function () {
 });
 
 
-test('allows the same address on different servers', function () {
+test('rejects targets sharing root, webroot or url on the same server', function () {
+    foreach ([
+        ['root' => deployRoot('/srv/shared'), 'webroot' => '/srv/staging/public_html', 'url' => 'https://staging.example.com'],
+        ['root' => deployRoot('/srv/staging'), 'webroot' => '/srv/shared', 'url' => 'https://staging.example.com'],
+        ['root' => deployRoot('/srv/staging'), 'webroot' => '/srv/staging/public_html', 'url' => 'https://app.example.com'],
+    ] as $overrides)
+    {
+        expect(fn () => Config::load(deployConfigFile([
+            'targets' => [
+                'development' => deployConfigTarget($overrides),
+                'staging' => deployConfigTarget([
+                    'root' => deployRoot('/srv/staging'),
+                    'webroot' => '/srv/staging/public_html',
+                    'url' => 'https://staging.example.com',
+                ]),
+            ],
+        ])))->toThrow(RuntimeException::class, 'must not share');
+    }
+});
+
+
+test('rejects targets sharing a final root built from base and dir', function () {
+    expect(fn () => Config::load(deployConfigFile([
+        'targets' => [
+            'development' => deployConfigTarget([
+                'root' => deployRoot('/srv/domain', 'app'),
+                'webroot' => '/srv/public_html/development',
+                'url' => 'https://dev.example.com',
+            ]),
+            'staging' => deployConfigTarget([
+                'root' => deployRoot('/srv/domain', 'app'),
+                'webroot' => '/srv/public_html/staging',
+                'url' => 'https://staging.example.com',
+            ]),
+        ],
+    ])))->toThrow(RuntimeException::class, 'must not share root');
+});
+
+
+test('allows the same root base with different directories', function () {
     $config = Config::load(deployConfigFile([
         'targets' => [
-            'staging' => [
-                'ssh' => ['host' => 'staging.example.com', 'user' => 'deploy'],
-                'root' => '/srv/app',
-                'webroot' => '/srv/app/public_html',
-                'url' => 'https://example.com',
-            ],
-            'production' => [
-                'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
-                'root' => '/srv/app',
-                'webroot' => '/srv/app/public_html',
-                'url' => 'https://example.com',
-            ],
+            'development' => deployConfigTarget([
+                'root' => deployRoot('/srv/domain', 'development'),
+                'webroot' => '/srv/public_html/development',
+                'url' => 'https://dev.example.com',
+            ]),
+            'staging' => deployConfigTarget([
+                'root' => deployRoot('/srv/domain', 'staging'),
+                'webroot' => '/srv/public_html/staging',
+                'url' => 'https://staging.example.com',
+            ]),
         ],
     ]));
 
-    expect($config->names())->toBe(['staging', 'production']);
+    expect($config->target('development')->root)->toBe('/srv/domain/development')
+        ->and($config->target('staging')->root)->toBe('/srv/domain/staging');
 });
 
 
-test('rejects a non-production target reusing the production url on the same server', function () {
-    expect(fn () => Config::load(deployConfigFile([
+test('allows the same addresses on different servers', function () {
+    $config = Config::load(deployConfigFile([
         'targets' => [
-            'staging' => [
-                'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
-                'root' => '/srv/staging',
-                'webroot' => '/srv/public_html/staging',
-                'url' => 'https://example.com/',
-            ],
-            'production' => [
-                'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
-                'root' => '/srv/app',
-                'webroot' => '/srv/public_html',
-                'url' => 'https://example.com',
-            ],
+            'development' => deployConfigTarget([
+                'ssh' => ['host' => 'dev.example.com', 'user' => 'deploy'],
+            ]),
+            'staging' => deployConfigTarget([
+                'ssh' => ['host' => 'staging.example.com', 'user' => 'deploy'],
+            ]),
         ],
-    ])))->toThrow(RuntimeException::class, 'must not reuse production url');
+    ]));
+
+    expect($config->names())->toBe(['development', 'staging']);
 });
 
 
-test('rejects a non-production target reusing the production root on the same server', function () {
-    expect(fn () => Config::load(deployConfigFile([
+test('detects direct child webroots for isolation', function () {
+    $config = Config::load(deployConfigFile([
         'targets' => [
-            'staging' => [
-                'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
-                'root' => '/srv/app',
-                'webroot' => '/srv/public_html/staging',
+            'production' => deployConfigTarget([
+                'root' => deployRoot('/srv/domain'),
+                'webroot' => '/srv/domain/public_html',
+                'url' => 'https://example.com',
+            ]),
+            'development' => deployConfigTarget([
+                'root' => deployRoot('/srv/domain/dev'),
+                'webroot' => '/srv/domain/public_html/dev',
+                'url' => 'https://dev.example.com',
+            ]),
+            'staging' => deployConfigTarget([
+                'root' => deployRoot('/srv/domain/staging'),
+                'webroot' => '/srv/domain/public_html/staging',
                 'url' => 'https://staging.example.com',
-            ],
-            'production' => [
-                'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
-                'root' => '/srv/app',
-                'webroot' => '/srv/public_html',
-                'url' => 'https://example.com',
-            ],
+            ]),
         ],
-    ])))->toThrow(RuntimeException::class, 'must not reuse production root');
+    ]));
+
+    expect($config->target('production')->nestedWebroots)->toBe(['dev', 'staging'])
+        ->and($config->target('development')->nestedWebroots)->toBe([])
+        ->and($config->target('staging')->nestedWebroots)->toBe([]);
+});
+
+
+test('rejects webroot nesting deeper than a direct child', function () {
+    expect(fn () => Config::load(deployConfigFile([
+        'targets' => [
+            'production' => deployConfigTarget([
+                'root' => deployRoot('/srv/domain'),
+                'webroot' => '/srv/domain/public_html',
+                'url' => 'https://example.com',
+            ]),
+            'development' => deployConfigTarget([
+                'root' => deployRoot('/srv/domain/dev'),
+                'webroot' => '/srv/domain/public_html/sub/dev',
+                'url' => 'https://dev.example.com',
+            ]),
+        ],
+    ])))->toThrow(RuntimeException::class, 'direct child');
 });
 
 
@@ -424,148 +481,61 @@ test('rejects a target without ssh', function () {
 });
 
 
-test('rejects a target without a host', function () {
+test('rejects invalid ssh fields', function () {
     expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
         'ssh' => ['user' => 'deploy'],
     ]))))->toThrow(RuntimeException::class, "'host' must be a non-empty string");
-});
 
-
-test('rejects a target without a user', function () {
     expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
         'ssh' => ['host' => 'app.example.com'],
     ]))))->toThrow(RuntimeException::class, "'user' must be a non-empty string");
-});
 
-
-test('rejects a non-integer ssh port', function () {
     expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
         'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'port' => '22'],
     ]))))->toThrow(RuntimeException::class, "'port' must be an integer");
-});
 
-
-test('rejects an out of range ssh port', function () {
     expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
         'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'port' => 0],
     ]))))->toThrow(RuntimeException::class, 'invalid SSH port');
-});
 
-
-test('rejects an invalid url', function () {
-    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'url' => 'not-a-url',
-    ]))))->toThrow(RuntimeException::class, "invalid 'url'");
-});
-
-
-test('rejects a non-http url scheme', function () {
-    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'url' => 'ftp://app.example.com',
-    ]))))->toThrow(RuntimeException::class, "requires an http or https 'url'");
-});
-
-
-test('rejects a preserve value that is not a list', function () {
-    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'preserve' => 'invalid',
-    ]))))->toThrow(RuntimeException::class, 'invalid list');
-});
-
-
-test('rejects a preserve item that is not a string', function () {
-    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'preserve' => [1],
-    ]))))->toThrow(RuntimeException::class, 'list item must be a string');
-});
-
-
-test('rejects non-object permissions', function () {
-    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'permissions' => 'invalid',
-    ]))))->toThrow(RuntimeException::class, "'permissions' must be an object");
-});
-
-
-test('rejects non-object backup', function () {
-    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'backup' => 'invalid',
-    ]))))->toThrow(RuntimeException::class, "'backup' must be an object");
-});
-
-
-test('rejects a non-boolean backup enabled flag', function () {
-    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'backup' => ['enabled' => 'yes'],
-    ]))))->toThrow(RuntimeException::class, "'backup.enabled' must be a boolean");
-});
-
-
-test('rejects a non-positive backup keep', function () {
-    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'backup' => ['keep' => 0],
-    ]))))->toThrow(RuntimeException::class, "'backup.keep' must be an integer >= 1");
-});
-
-
-test('rejects a root-level root', function () {
-    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'root' => '/',
-    ]))))->toThrow(RuntimeException::class, "requires an absolute 'root'");
-});
-
-
-test('rejects a root-level webroot', function () {
-    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'webroot' => '/',
-    ]))))->toThrow(RuntimeException::class, "requires an absolute 'webroot'");
-});
-
-
-test('rejects an empty ssh identity', function () {
     expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
         'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'identity' => ''],
     ]))))->toThrow(RuntimeException::class, "'identity' must be a non-empty string");
 });
 
 
-test('allows the same production address on a different port', function () {
-    $config = Config::load(deployConfigFile([
-        'targets' => [
-            'staging' => [
-                'ssh' => ['host' => 'example.com', 'user' => 'deploy', 'port' => 2222],
-                'root' => '/srv/app',
-                'webroot' => '/srv/public_html',
-                'url' => 'https://example.com',
-            ],
-            'production' => [
-                'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
-                'root' => '/srv/app',
-                'webroot' => '/srv/public_html',
-                'url' => 'https://example.com',
-            ],
-        ],
-    ]));
+test('rejects invalid urls', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'url' => 'not-a-url',
+    ]))))->toThrow(RuntimeException::class, "invalid 'url'");
 
-    expect($config->names())->toBe(['staging', 'production']);
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'url' => 'ftp://app.example.com',
+    ]))))->toThrow(RuntimeException::class, "requires an http or https 'url'");
 });
 
 
-test('rejects a non-production target reusing the production webroot on the same server', function () {
-    expect(fn () => Config::load(deployConfigFile([
-        'targets' => [
-            'staging' => [
-                'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
-                'root' => '/srv/staging',
-                'webroot' => '/srv/public_html',
-                'url' => 'https://staging.example.com',
-            ],
-            'production' => [
-                'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
-                'root' => '/srv/app',
-                'webroot' => '/srv/public_html',
-                'url' => 'https://example.com',
-            ],
-        ],
-    ])))->toThrow(RuntimeException::class, 'must not reuse production webroot');
+test('rejects invalid backup settings', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'backup' => 'invalid',
+    ]))))->toThrow(RuntimeException::class, "'backup' must be an object");
+
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'backup' => ['keep' => 0],
+    ]))))->toThrow(RuntimeException::class, "'backup.keep' must be an integer >= 1");
+
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'backup' => ['keep' => '3'],
+    ]))))->toThrow(RuntimeException::class, "'backup.keep' must be an integer >= 1");
+});
+
+
+test('rejects root-level paths', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'root' => deployRoot('/'),
+    ]))))->toThrow(RuntimeException::class, "root-level 'root.base'");
+
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'webroot' => '/',
+    ]))))->toThrow(RuntimeException::class, "root-level 'webroot'");
 });

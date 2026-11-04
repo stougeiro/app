@@ -37,15 +37,11 @@ class Initializer
         }
 
         $this->ensureDirectory($base);
-
-        foreach (['env', 'ssh', 'plans'] as $name)
-        {
-            $this->ensureDirectory($base .'/'. $name);
-        }
+        $this->ensureDirectory($base .'/ssh');
 
         foreach (Config::ENVIRONMENTS as $environment)
         {
-            foreach (['application', 'public_html', 'vendor'] as $tree)
+            foreach (['application', 'public'] as $tree)
             {
                 $this->ensureDirectory($base .'/override/'. $environment .'/'. $tree);
             }
@@ -69,7 +65,6 @@ class Initializer
         $this->out('');
         $this->out('next:');
         $this->out('  edit deploy.json');
-        $this->out('  add .deploy/env/<target>.json');
         $this->out('  place SSH keys in .deploy/ssh/ or ~/.ssh/');
         $this->out('  add per-target overrides in .deploy/override/<target>/');
         $this->out('  run: deploy check --target=staging');
