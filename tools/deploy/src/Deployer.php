@@ -19,6 +19,10 @@ class Deployer
 
     private bool $hasRsync = false;
 
+    private bool $localEnvExists = false;
+
+    private bool $remoteEnvExists = false;
+
 
     public function __construct(
         private readonly string $projectRoot,
@@ -74,6 +78,51 @@ class Deployer
         )->output() === 'yes';
 
         $this->out('transport: '. ($this->hasRsync ? 'rsync' : 'tar (fallback)'));
+
+        $this->checkEnv();
+    }
+
+
+    private function checkEnv(): void
+    {
+        $target = $this->target;
+        $local = $this->overridePath('application') .'/env.json';
+        $remote = $target->root .'/application/env.json';
+
+        $this->localEnvExists = is_file($local);
+        $this->remoteEnvExists = false;
+
+        if ( ! $this->localEnvExists)
+        {
+            $this->remoteEnvExists = $this->ssh->must(
+                $target,
+                'if [ -f '. Ssh::quote($remote) .' ]; then echo yes; else echo no; fi',
+            )->output() === 'yes';
+        }
+
+        if ( ! $this->localEnvExists && ! $this->remoteEnvExists)
+        {
+            $this->out(
+                'warning: no env found for \''. $target->name .'\'; add '. $local
+                .' or create '. $remote,
+            );
+        }
+    }
+
+
+    private function assertEnvExists(): void
+    {
+        if ($this->localEnvExists || $this->remoteEnvExists)
+        {
+            return;
+        }
+
+        $local = $this->overridePath('application') .'/env.json';
+        $remote = $this->target->root .'/application/env.json';
+
+        throw new RuntimeException(
+            "missing env for '{$this->target->name}': add {$local} or create {$remote}",
+        );
     }
 
 
@@ -99,6 +148,7 @@ class Deployer
     public function push(): void
     {
         $this->check();
+        $this->assertEnvExists();
 
         $build = $this->buildVendor();
         $started = false;

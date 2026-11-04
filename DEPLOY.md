@@ -197,6 +197,15 @@ Environment values belong in an override:
 
 No environment file is managed by the deploy tool.
 
+`check` warns when neither the local override nor the remote file exists:
+
+```text
+.deploy/override/<target>/application/env.json
+root/application/env.json
+```
+
+`push` aborts before maintenance and transfer when both are missing.
+
 ## Uploads
 
 Application uploads belong to:

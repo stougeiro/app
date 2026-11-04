@@ -42,6 +42,7 @@ function deployDeployerShell(
     ?string $manifest = null,
     bool $failComposer = false,
     bool $composerNoVendor = false,
+    bool $remoteEnv = false,
 ): FakeShell {
     return new FakeShell(function (array $command, ?string $stdin = null, ?string $cwd = null) use (
         $failWebrootRsync,
@@ -53,12 +54,18 @@ function deployDeployerShell(
         $manifest,
         $failComposer,
         $composerNoVendor,
+        $remoteEnv,
     ): ShellResult {
         $binary = $command[0];
         $remote = $command[count($command) - 1];
 
         if ($binary === 'ssh')
         {
+            if (str_contains($remote, 'application/env.json'))
+            {
+                return new ShellResult(0, $remoteEnv ? 'yes' : 'no', '');
+            }
+
             if (str_contains($remote, 'command -v rsync'))
             {
                 return new ShellResult(0, $hasRsync ? 'yes' : 'no', '');
@@ -188,6 +195,31 @@ test('check does not create a root when dir is omitted', function () {
     $deployer->check();
 
     expect(deployDeployerCalls($shell))->not->toContain('mkdir');
+});
+
+
+test('push aborts when there is no local or remote env', function () {
+    $root = deployDeployerWorkspace();
+    unlink($root .'/.deploy/override/staging/application/env.json');
+    $shell = deployDeployerShell();
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+
+    expect(fn () => $deployer->push())
+        ->toThrow(RuntimeException::class, 'missing env');
+
+    expect(deployDeployerCalls($shell))->not->toContain('composer install');
+});
+
+
+test('push accepts a remote env when the local override is missing', function () {
+    $root = deployDeployerWorkspace();
+    unlink($root .'/.deploy/override/staging/application/env.json');
+    $shell = deployDeployerShell(remoteEnv: true);
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+
+    $deployer->push();
+
+    expect(deployDeployerCalls($shell))->toContain('composer install');
 });
 
 
