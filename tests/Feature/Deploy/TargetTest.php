@@ -56,6 +56,19 @@ test('throws when a home-relative identity has no HOME', function () {
 });
 
 
+test('exposes root base and dir', function () {
+    $target = DeployFixtures::target(
+        root: '/srv/domain/development',
+        rootBase: '/srv/domain',
+        rootDir: 'development',
+    );
+
+    expect($target->root)->toBe('/srv/domain/development')
+        ->and($target->rootBase)->toBe('/srv/domain')
+        ->and($target->rootDir)->toBe('development');
+});
+
+
 test('exposes backup and nested webroot settings', function () {
     $target = DeployFixtures::target(backupKeep: 5, nestedWebroots: ['dev', 'staging']);
 

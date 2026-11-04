@@ -47,15 +47,22 @@ class Deployer
         $storage = $target->root .'/application/storage';
         $upload = $storage .'/upload';
 
-        $this->ssh->must(
-            $target,
-            'test -d '. Ssh::quote($target->root)
+        $command = 'test -d '. Ssh::quote($target->rootBase)
+            .' && test -w '. Ssh::quote($target->rootBase);
+
+        if ($target->rootDir !== null)
+        {
+            $command .= ' && { [ -d '. Ssh::quote($target->root) .' ] || mkdir '. Ssh::quote($target->root) .'; }';
+        }
+
+        $command .= ' && test -d '. Ssh::quote($target->root)
             .' && test -w '. Ssh::quote($target->root)
             .' && test -d '. Ssh::quote($target->webroot)
             .' && test -w '. Ssh::quote($target->webroot)
             .' && { [ ! -d '. Ssh::quote($storage) .' ] || test -w '. Ssh::quote($storage) .'; }'
-            .' && { [ ! -d '. Ssh::quote($upload) .' ] || test -w '. Ssh::quote($upload) .'; }',
-        );
+            .' && { [ ! -d '. Ssh::quote($upload) .' ] || test -w '. Ssh::quote($upload) .'; }';
+
+        $this->ssh->must($target, $command);
 
         $this->out('ssh ok, root and webroot are writable');
 

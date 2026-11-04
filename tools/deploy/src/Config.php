@@ -177,7 +177,8 @@ class Config
         }
 
         $webroot = self::path($name, 'webroot', self::requireString($data, 'webroot'));
-        $rootDirectory = self::rootPath($name, $data['root'] ?? null);
+        $root = self::rootPath($name, $data['root'] ?? null);
+        $rootDirectory = $root['root'];
 
         if ($rootDirectory === $webroot)
         {
@@ -223,6 +224,8 @@ class Config
             $identity,
             $webroot,
             $rootDirectory,
+            $root['base'],
+            $root['dir'],
             $url,
             $preserve,
             $backupKeep,
@@ -258,7 +261,10 @@ class Config
     }
 
 
-    private static function rootPath(string $name, mixed $value): string
+    /**
+     * @return array{root:string, base:string, dir:?string}
+     */
+    private static function rootPath(string $name, mixed $value): array
     {
         if ( ! is_array($value))
         {
@@ -271,7 +277,7 @@ class Config
 
         if ($directory === null)
         {
-            return $path;
+            return ['root' => $path, 'base' => $path, 'dir' => null];
         }
 
         if ( ! is_string($directory) || trim($directory) === '')
@@ -291,7 +297,7 @@ class Config
             throw new RuntimeException("config: target '{$name}' has an invalid 'root.dir'");
         }
 
-        return $path .'/'. $directory;
+        return ['root' => $path .'/'. $directory, 'base' => $path, 'dir' => $directory];
     }
 
 
@@ -391,6 +397,8 @@ class Config
                 $target->sshIdentity,
                 $target->webroot,
                 $target->root,
+                $target->rootBase,
+                $target->rootDir,
                 $target->url,
                 $target->preserve,
                 $target->backupKeep,

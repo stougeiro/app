@@ -95,6 +95,8 @@ test('loads defaults, explicit root and applies deep merge', function () {
         ->and($target->sshIdentity)->toBe('~/.ssh/id_ed25519')
         ->and($target->webroot)->toBe('/srv/staging.example.com/public_html')
         ->and($target->root)->toBe('/srv/staging.example.com/app')
+        ->and($target->rootBase)->toBe('/srv/staging.example.com/app')
+        ->and($target->rootDir)->toBeNull()
         ->and($target->url)->toBe('https://staging.example.com')
         ->and($target->preserve)->toBe(['/.well-known/***'])
         ->and($target->backupKeep)->toBe(5)
@@ -107,7 +109,9 @@ test('builds the root from base and dir', function () {
         'root' => deployRoot('/srv/domain', 'development'),
     ])));
 
-    expect($config->target('staging')->root)->toBe('/srv/domain/development');
+    expect($config->target('staging')->root)->toBe('/srv/domain/development')
+        ->and($config->target('staging')->rootBase)->toBe('/srv/domain')
+        ->and($config->target('staging')->rootDir)->toBe('development');
 });
 
 

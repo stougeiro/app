@@ -139,8 +139,13 @@ Relative paths, `.`/`..` segments, `~` and backslashes are rejected.
 `root.dir` must be a single directory segment. Slashes, `.`, `..`, `~` and
 backslashes are rejected.
 
-No directory is created automatically. If `root.base`, the final root or the
-webroot does not exist on the server, `check` and `push` fail.
+`root.base` must already exist and be writable. When `root.dir` is set and the
+final root does not exist, `check` creates only that direct child with `mkdir`
+(no recursive creation). When `root.dir` is omitted, `root.base` is the final
+root and must exist.
+
+The webroot is never created automatically. If it does not exist, `check` and
+`push` fail.
 
 ## Same server and target isolation
 

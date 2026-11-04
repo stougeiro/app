@@ -17,6 +17,8 @@ final class DeployFixtures
         string $webroot = '/srv/app/public_html',
         int $backupKeep = 3,
         array $nestedWebroots = [],
+        ?string $rootBase = null,
+        ?string $rootDir = null,
     ): Target {
         return new Target(
             $name,
@@ -26,6 +28,8 @@ final class DeployFixtures
             $identity,
             $webroot,
             $root,
+            $rootBase ?? $root,
+            $rootDir,
             'https://staging.example.com',
             ['/.well-known/***'],
             $backupKeep,

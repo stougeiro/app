@@ -162,6 +162,35 @@ test('check accepts a reachable target without probing php cli', function () {
 });
 
 
+test('check creates only the configured root dir when missing', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell();
+    $target = DeployFixtures::target(
+        root: '/srv/app/development',
+        rootBase: '/srv/app',
+        rootDir: 'development',
+    );
+    $deployer = new Deployer($root, $target, $shell);
+
+    $deployer->check();
+
+    expect(deployDeployerCalls($shell))
+        ->toContain("mkdir '/srv/app/development'")
+        ->toContain("test -d '/srv/app'");
+});
+
+
+test('check does not create a root when dir is omitted', function () {
+    $root = deployDeployerWorkspace();
+    $shell = deployDeployerShell();
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+
+    $deployer->check();
+
+    expect(deployDeployerCalls($shell))->not->toContain('mkdir');
+});
+
+
 test('push creates a backup, transfers the build and applies overrides', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell();

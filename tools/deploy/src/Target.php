@@ -19,6 +19,8 @@ class Target
         public readonly ?string $sshIdentity,
         public readonly string $webroot,
         public readonly string $root,
+        public readonly string $rootBase,
+        public readonly ?string $rootDir,
         public readonly string $url,
         public readonly array $preserve,
         public readonly int $backupKeep,
