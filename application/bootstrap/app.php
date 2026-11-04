@@ -13,7 +13,7 @@ const ROOT = __DIR__ . '/../';
 require_once ROOT .'../vendor/autoload.php';
 
 Path::register('root', ROOT);
-Path::register('app', 'modules/', 'root');
+Path::register('app', 'module/', 'root');
 Path::register('config', 'config/', 'root');
 Path::register('storage', 'storage/', 'root');
 Path::register('cache', 'cache/', 'storage');

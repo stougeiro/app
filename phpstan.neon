@@ -1,7 +1,7 @@
 parameters:
     level: 9
     paths:
-        - application/modules
+        - application/module
         - application/bootstrap
         - application/core
         - application/database
@@ -10,6 +10,6 @@ parameters:
         - tools/deploy/src
         - tools/deploy/console.php
     excludePaths:
-        - application/modules/*/View/*
+        - application/module/*/View/*
     bootstrapFiles:
         - application/bootstrap/app.php
