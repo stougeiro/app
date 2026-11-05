@@ -41,12 +41,18 @@ try {
     /** @var list<class-string<ToolInterface>> $tools */
     $tools = require __DIR__ .'/tools.php';
     $commands = [];
+    $groups = [];
 
     foreach ($tools as $toolClass) {
-        $commands += (new $toolClass())->commands($container);
+        $tool = new $toolClass();
+        $commands += $tool->commands($container);
+        $groups[$tool->name()] = [
+            'description' => $tool->description(),
+            'version' => $tool->version(),
+        ];
     }
 
-    $application = new Application($commands);
+    $application = new Application($commands, groups: $groups);
 } catch (Throwable $exception) {
     fwrite(STDERR, 'error: '. $exception->getMessage() . PHP_EOL);
     exit(1);

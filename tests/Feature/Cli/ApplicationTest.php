@@ -47,14 +47,14 @@ test('collects positional arguments and stops option parsing after --', function
 });
 
 
-test('shows global and command help', function () {
+test('shows global help and rejects command-level help', function () {
     $global = CliFixtures::run(recordingCommands(), []);
-    $command = CliFixtures::run(recordingCommands(), ['demo', '--help']);
+    $command = CliFixtures::run(recordingCommands(), ['demo', 'status', '--help']);
 
-    expect($global['stdout'])->toContain('Commands:')
-        ->and($global['stdout'])->toContain('demo status')
-        ->and($command['stdout'])->toContain('--name=<value>')
-        ->and($command['stdout'])->toContain('--json');
+    expect($global['stdout'])->toContain('Tools:')
+        ->and($global['stdout'])->toContain('demo')
+        ->and($command['code'])->toBe(ExitCode::Invalid->value)
+        ->and($command['stderr'])->toContain('unknown option');
 });
 
 
@@ -79,12 +79,6 @@ test('rejects unknown commands and options', function () {
 });
 
 
-test('suppresses output when quiet', function () {
-    $result = CliFixtures::run(recordingCommands(), ['demo', '--quiet', '--name=Ana']);
-
-    expect($result['stdout'])->toBe('');
-});
-
 
 test('returns the command exit code', function () {
     $commands = ['demo' => new RecordingCommand('demo', [], ExitCode::CheckFailed->value)];
@@ -105,6 +99,11 @@ test('returns failure when a command throws', function () {
             public function description(): string
             {
                 return 'boom';
+            }
+
+            public function usage(): string
+            {
+                return 'sourcerer boom';
             }
 
             public function options(): array
@@ -130,6 +129,21 @@ test('shows help for a command group', function () {
     $commands = ['demo status' => new RecordingCommand('demo status', [new Option('name', 'A name', true)])];
     $result = CliFixtures::run($commands, ['demo']);
 
-    expect($result['stdout'])->toContain('demo status')
+    expect($result['stdout'])->toContain('status')
+        ->and($result['stdout'])->toContain('Usage:')
+        ->and($result['stdout'])->toContain('--name=<value>')
         ->and($result['stdout'])->toContain('recording command');
+});
+
+
+test('help and version are imperative and must be alone', function () {
+    $help = CliFixtures::run(recordingCommands(), ['--help', 'demo']);
+    $version = CliFixtures::run(recordingCommands(), ['--version', 'demo']);
+    $group = CliFixtures::run(recordingCommands(), ['demo', '--version']);
+
+    expect($help['code'])->toBe(ExitCode::Invalid->value)
+        ->and($help['stderr'])->toContain('--help must be used alone')
+        ->and($version['code'])->toBe(ExitCode::Invalid->value)
+        ->and($version['stderr'])->toContain('--version must be used alone')
+        ->and($group['stdout'])->toContain('demo 1.2.3');
 });

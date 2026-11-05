@@ -17,14 +17,14 @@ final class CheckCommand extends DeployCommandAbstracted
 
     public function description(): string
     {
-        return 'Verify SSH, paths, storage and transport';
+        return 'Verify SSH, requirements, paths, storage and transport';
     }
 
     /** @return list<Option> */
     protected function commandOptions(): array
     {
         return [
-            new Option('target', 'Deploy target', true),
+            new Option('target', 'Target to operate on (development, staging, production, demonstration)', true, null, true, 'target'),
         ];
     }
 

@@ -104,6 +104,12 @@ Read `ARCHITECTURE.md` before changing code.
 - Read `DEPLOY.md` before using or configuring the deploy tool.
 - The normal change scope is `application/*` and `public/*`.
 - Deploy source lives in `tools/deploy` and runs through `./sourcerer deploy`.
+- Successful pushes create immutable releases under `.deploy/releases`; promote
+  reuses the same releaseId across targets.
+- Environment values come only from `.deploy/override/<target>/application/env.json`;
+  remote or backed-up env files are never reused.
+- `deploy.json` must declare `operator.name`; release/event identity comes from it.
+- `deploy releases` reads the local mirror; `--sync` mirrors all targets.
 - The deploy tool is repository tooling. Do not require it from `application/`,
   providers or modules.
 - Do not upload `tools/deploy/` to the server. A deploy transfers only

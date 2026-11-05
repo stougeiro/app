@@ -4,15 +4,21 @@ namespace Tool\Deploy;
 
 use JsonException;
 use RuntimeException;
+use Tool\Deploy\Operator\Operator;
 
 
 class Config
 {
     /** @var list<string> */
-    public const ENVIRONMENTS = ['development', 'staging', 'production'];
+    public const TARGETS = ['development', 'staging', 'production', 'demonstration'];
+
+    /** @var list<string> */
+    public const PROMOTION = ['development', 'staging', 'production'];
 
     /** @var array<string, Target> */
     private array $targets = [];
+
+    private ?Operator $operator = null;
 
 
     private function __construct()
@@ -70,13 +76,14 @@ class Config
         }
 
         $config = new self();
+        $config->operator = self::buildOperator($data['operator'] ?? null);
 
         foreach ($targets as $name => $target)
         {
-            if ( ! is_string($name) || ! in_array($name, self::ENVIRONMENTS, true))
+            if ( ! is_string($name) || ! in_array($name, self::TARGETS, true))
             {
                 throw new RuntimeException(
-                    "config: invalid target '{$name}'. use: ". implode(', ', self::ENVIRONMENTS),
+                    "config: invalid target '{$name}'. use: ". implode(', ', self::TARGETS),
                 );
             }
 
@@ -93,6 +100,22 @@ class Config
         $config->targets = self::withNestedWebroots($config->targets);
 
         return $config;
+    }
+
+
+    public function operator(): ?Operator
+    {
+        return $this->operator;
+    }
+
+
+    public function requireOperator(): Operator
+    {
+        if ($this->operator === null) {
+            throw new RuntimeException('config: operator.name is required');
+        }
+
+        return $this->operator;
     }
 
 
@@ -154,9 +177,33 @@ class Config
     }
 
 
-    /**
-     * @param array<array-key, mixed> $data
-     */
+    private static function buildOperator(mixed $value): ?Operator
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if ( ! is_array($value)) {
+            throw new RuntimeException("config: 'operator' must be an object");
+        }
+
+        $name = $value['name'] ?? null;
+
+        if ( ! is_string($name) || trim($name) === '') {
+            throw new RuntimeException("config: 'operator.name' must be a non-empty string");
+        }
+
+        $email = $value['email'] ?? null;
+
+        if ($email !== null && ( ! is_string($email) || trim($email) === '')) {
+            throw new RuntimeException("config: 'operator.email' must be a non-empty string");
+        }
+
+        return new Operator(trim($name), is_string($email) ? trim($email) : null);
+    }
+
+
+    /** @param array<array-key, mixed> $data */
     private static function buildTarget(string $name, array $data, string $root): Target
     {
         $ssh = self::requireArray($data, 'ssh');
@@ -214,7 +261,15 @@ class Config
             }
         }
 
-        $backupKeep = self::backupKeep($data['backup'] ?? []);
+        $keep = $data['keep'] ?? [];
+
+        if ( ! is_array($keep)) {
+            throw new RuntimeException("config: 'keep' must be an object");
+        }
+
+        $backupKeep = self::keep($keep, 'backup', 3);
+        $releaseKeep = self::keep($keep, 'release', 10);
+        $eventKeep = self::keep($keep, 'event', 200);
 
         return new Target(
             $name,
@@ -229,6 +284,9 @@ class Config
             $url,
             $preserve,
             $backupKeep,
+            [],
+            $releaseKeep,
+            $eventKeep,
         );
     }
 
@@ -403,6 +461,8 @@ class Config
                 $target->preserve,
                 $target->backupKeep,
                 array_values(array_unique($nested)),
+                $target->releaseKeep,
+                $target->eventKeep,
             );
         }
 
@@ -570,20 +630,16 @@ class Config
     }
 
 
-    private static function backupKeep(mixed $value): int
+    /** @param array<array-key, mixed> $keep */
+    private static function keep(array $keep, string $key, int $default): int
     {
-        if ( ! is_array($value))
-        {
-            throw new RuntimeException("config: 'backup' must be an object");
+        $value = $keep[$key] ?? $default;
+
+        if ( ! is_int($value) || $value < 1) {
+            throw new RuntimeException("config: 'keep.{$key}' must be an integer >= 1");
         }
 
-        $keep = $value['keep'] ?? 3;
-
-        if ( ! is_int($keep) || $keep < 1)
-        {
-            throw new RuntimeException("config: 'backup.keep' must be an integer >= 1");
-        }
-
-        return $keep;
+        return $value;
     }
+
 }

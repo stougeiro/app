@@ -42,7 +42,6 @@ function deployDeployerShell(
     ?string $manifest = null,
     bool $failComposer = false,
     bool $composerNoVendor = false,
-    bool $remoteEnv = false,
 ): FakeShell {
     return new FakeShell(function (array $command, ?string $stdin = null, ?string $cwd = null) use (
         $failWebrootRsync,
@@ -54,18 +53,29 @@ function deployDeployerShell(
         $manifest,
         $failComposer,
         $composerNoVendor,
-        $remoteEnv,
     ): ShellResult {
         $binary = $command[0];
         $remote = $command[count($command) - 1];
 
-        if ($binary === 'ssh')
+        if ($binary === 'tar' && in_array('-czf', $command, true))
         {
-            if (str_contains($remote, 'application/env.json'))
+            $target = $command[array_search('-czf', $command, true) + 1] ?? null;
+
+            if (is_string($target))
             {
-                return new ShellResult(0, $remoteEnv ? 'yes' : 'no', '');
+                @file_put_contents($target, '');
             }
 
+            return new ShellResult(0, '', '');
+        }
+
+        if ($binary === 'ssh' && (str_contains($remote, 'hash_file') || str_contains($remote, 'sha256sum') || str_contains($remote, 'shasum') || str_contains($remote, 'openssl dgst')))
+        {
+            return new ShellResult(0, hash('sha256', ''), '');
+        }
+
+        if ($binary === 'ssh')
+        {
             if (str_contains($remote, 'command -v rsync'))
             {
                 return new ShellResult(0, $hasRsync ? 'yes' : 'no', '');
@@ -133,6 +143,15 @@ function deployDeployerShell(
         if ($binary === 'curl')
         {
             $url = $command[count($command) - 1];
+
+            if (str_contains($url, '_sr-check'))
+            {
+                return new ShellResult(0, json_encode([
+                    'php' => '8.2.20',
+                    'extensions' => ['pdo', 'pdo_sqlite'],
+                ], JSON_THROW_ON_ERROR), '');
+            }
+
             $status = str_ends_with($url, '/missing') ? $missingStatus : $rootStatus;
 
             if (in_array('-o', $command, true))
@@ -165,7 +184,8 @@ test('check accepts a reachable target without probing php cli', function () {
     $deployer->check();
 
     expect($shell->calls)->not->toBeEmpty()
-        ->and(deployDeployerCalls($shell))->not->toContain('PHP_VERSION');
+        ->and(deployDeployerCalls($shell))->not->toContain('PHP_VERSION')
+        ->and(deployDeployerCalls($shell))->not->toContain('application/env.json');
 });
 
 
@@ -198,7 +218,7 @@ test('check does not create a root when dir is omitted', function () {
 });
 
 
-test('push aborts when there is no local or remote env', function () {
+test('push requires a local env override', function () {
     $root = deployDeployerWorkspace();
     unlink($root .'/.deploy/override/staging/application/env.json');
     $shell = deployDeployerShell();
@@ -210,17 +230,6 @@ test('push aborts when there is no local or remote env', function () {
     expect(deployDeployerCalls($shell))->not->toContain('composer install');
 });
 
-
-test('push accepts a remote env when the local override is missing', function () {
-    $root = deployDeployerWorkspace();
-    unlink($root .'/.deploy/override/staging/application/env.json');
-    $shell = deployDeployerShell(remoteEnv: true);
-    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
-
-    $deployer->push();
-
-    expect(deployDeployerCalls($shell))->toContain('composer install');
-});
 
 
 test('push creates a backup, transfers the build and applies overrides', function () {
@@ -342,7 +351,7 @@ test('push excludes nested target webroots', function () {
 
 test('backups lists remote snapshots', function () {
     $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240102-000000/\n/srv/app/.deploy/backups/staging/20240101-000000/\n");
+    $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/20240102-000000/\n/srv/app/.deploy/backups/20240101-000000/\n");
     $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     expect($deployer->backups())->toBe(['20240102-000000', '20240101-000000']);
@@ -363,7 +372,7 @@ test('rollback rejects an invalid timestamp', function () {
     $deployer = deployTestDeployer(
         $root,
         DeployFixtures::target(),
-        deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n"),
+        deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/20240101-000000/\n"),
     );
 
     expect(fn () => $deployer->rollback('invalid'))
@@ -376,7 +385,7 @@ test('rollback rejects an unknown timestamp', function () {
     $deployer = deployTestDeployer(
         $root,
         DeployFixtures::target(),
-        deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n"),
+        deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/20240101-000000/\n"),
     );
 
     expect(fn () => $deployer->rollback('20240102-000000'))
@@ -386,7 +395,7 @@ test('rollback rejects an unknown timestamp', function () {
 
 test('rollback restores the latest backup by default', function () {
     $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n");
+    $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/20240101-000000/\n");
     $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     $deployer->rollback(null);
@@ -401,7 +410,7 @@ test('rollback restores the latest backup by default', function () {
 
 test('rollback restores a specific timestamp', function () {
     $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240102-000000/\n/srv/app/.deploy/backups/staging/20240101-000000/\n");
+    $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/20240102-000000/\n/srv/app/.deploy/backups/20240101-000000/\n");
     $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     $deployer->rollback('20240101-000000');
@@ -412,7 +421,7 @@ test('rollback restores a specific timestamp', function () {
 
 test('rollback preserves nested target webroots', function () {
     $root = deployDeployerWorkspace();
-    $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n");
+    $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/20240101-000000/\n");
     $deployer = deployTestDeployer($root, DeployFixtures::target(nestedWebroots: ['dev']), $shell);
 
     $deployer->rollback(null);
@@ -427,7 +436,7 @@ test('rollback rejects a backup without a manifest', function () {
         $root,
         DeployFixtures::target(),
         deployDeployerShell(
-            snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
+            snapshotList: "/srv/app/.deploy/backups/20240101-000000/\n",
             manifest: '__MISSING__',
         ),
     );
@@ -443,7 +452,7 @@ test('rollback rejects an invalid manifest', function () {
         $root,
         DeployFixtures::target(),
         deployDeployerShell(
-            snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
+            snapshotList: "/srv/app/.deploy/backups/20240101-000000/\n",
             manifest: '{',
         ),
     );
@@ -459,7 +468,7 @@ test('rollback rejects a manifest that is not an object', function () {
         $root,
         DeployFixtures::target(),
         deployDeployerShell(
-            snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
+            snapshotList: "/srv/app/.deploy/backups/20240101-000000/\n",
             manifest: '123',
         ),
     );
@@ -475,7 +484,7 @@ test('rollback rejects a backup for another layout', function () {
         $root,
         DeployFixtures::target(),
         deployDeployerShell(
-            snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n",
+            snapshotList: "/srv/app/.deploy/backups/20240101-000000/\n",
             manifest: json_encode([
                 'target' => 'staging',
                 'root' => '/srv/other',
@@ -491,5 +500,53 @@ test('rollback rejects a backup for another layout', function () {
 
 function deployTestDeployer(string $root, \Tool\Deploy\Target $target, \Tool\Deploy\Shell $shell): Deployer
 {
-    return new \Tool\Deploy\Deployer($root, $target, $shell, DeployFixtures::output());
+    return new \Tool\Deploy\Deployer($root, $target, $shell, DeployFixtures::output(), DeployFixtures::operator());
 }
+
+
+test('push stores a release manifest, event and current marker', function () {
+    $root = DeployFixtures::workspace();
+    $shell = DeployFixtures::shell();
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell, DeployFixtures::output(), DeployFixtures::operator());
+
+    $deployer->push();
+
+    $archives = glob($root .'/.deploy/releases/*/release.tar.gz');
+    $manifests = glob($root .'/.deploy/releases/*/manifest.json');
+    $events = glob($root .'/.deploy/events/*.json');
+    $calls = DeployFixtures::calls($shell);
+    $manifestData = json_decode((string) file_get_contents($manifests[0]), true);
+    $eventData = json_decode((string) file_get_contents($events[0]), true);
+
+    expect($archives)->toBe([])
+        ->and($manifests)->not->toBeFalse()
+        ->and($manifests)->toHaveCount(1)
+        ->and($events)->not->toBeFalse()
+        ->and($events)->toHaveCount(1)
+        ->and($calls)->toContain('storage.tar.gz')
+        ->and($calls)->toContain('current.json')
+        ->and($calls)->toContain('release.tar.gz')
+        ->and(is_file($root .'/.deploy/targets/staging.json'))->toBeTrue()
+        ->and($calls)->toContain('--exclude=application/env.json')
+        ->and($calls)->not->toContain('backups/staging')
+        ->and($manifestData['artifactHash'] ?? null)->toBe('sha256:'. hash('sha256', ''))
+        ->and($manifestData['createdBy']['name'] ?? null)->toBe('Test Operator')
+        ->and($eventData['by']['name'] ?? null)->toBe('Test Operator')
+        ->and($eventData['context']['artifactVerified'] ?? null)->toBeTrue()
+        ->and($calls)->toContain('.deploy/releases')
+        ->and($calls)->toContain('.deploy/events');
+});
+
+
+test('rollback restores storage when the backup contains it', function () {
+    $root = DeployFixtures::workspace();
+    $shell = DeployFixtures::shell(snapshotList: "/srv/app/.deploy/backups/20240101-000000/\n");
+    $deployer = new Deployer($root, DeployFixtures::target(), $shell, DeployFixtures::output(), DeployFixtures::operator());
+
+    $deployer->rollback(null);
+
+    expect(DeployFixtures::calls($shell))
+        ->toContain('storage.tar.gz')
+        ->toContain('.deploy/override/staging/application/')
+        ->toContain('application/env.json');
+});

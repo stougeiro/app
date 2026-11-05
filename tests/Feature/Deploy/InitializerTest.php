@@ -109,3 +109,30 @@ test('fails when the example config is missing', function () {
     expect(fn () => (new Initializer($root, DeployFixtures::output()))->run())
         ->toThrow(RuntimeException::class, 'example not found');
 });
+
+
+test('creates the redirect stubs', function () {
+    $root = deployInitializerRoot();
+
+    (new Initializer($root, DeployFixtures::output()))->run();
+
+    expect(file_get_contents($root .'/.deploy/stub/index.php'))
+        ->toContain('header(\'Location: %url%\')')
+        ->and(file_get_contents($root .'/.deploy/stub/.htaccess'))
+        ->toContain('RewriteRule ^(.*)$ index.php [L,QSA]')
+        ->and(is_dir($root .'/.deploy/releases'))->toBeTrue()
+        ->and(is_dir($root .'/.deploy/targets'))->toBeTrue();
+});
+
+
+test('does not overwrite customized redirect stubs', function () {
+    $root = deployInitializerRoot();
+    mkdir($root .'/.deploy/stub', 0700, true);
+    file_put_contents($root .'/.deploy/stub/index.php', 'custom-index');
+    file_put_contents($root .'/.deploy/stub/.htaccess', 'custom-htaccess');
+
+    (new Initializer($root, DeployFixtures::output()))->run();
+
+    expect(file_get_contents($root .'/.deploy/stub/index.php'))->toBe('custom-index')
+        ->and(file_get_contents($root .'/.deploy/stub/.htaccess'))->toBe('custom-htaccess');
+});

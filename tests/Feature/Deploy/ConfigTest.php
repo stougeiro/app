@@ -69,8 +69,8 @@ test('loads defaults, explicit root and applies deep merge', function () {
                 'identity' => '~/.ssh/id_ed25519',
             ],
             'preserve' => ['/.well-known/***'],
-            'backup' => [
-                'keep' => 5,
+            'keep' => [
+                'backup' => 5,
             ],
         ],
         'targets' => [
@@ -155,12 +155,12 @@ test('rejects invalid root dir', function () {
 });
 
 
-test('applies per-target backup keep', function () {
+test('applies per-target keep values', function () {
     $config = Config::load(deployConfigFile([
-        'defaults' => ['backup' => ['keep' => 3]],
+        'defaults' => ['keep' => ['backup' => 3]],
         'targets' => [
             'production' => deployConfigTarget([
-                'backup' => ['keep' => 10],
+                'keep' => ['backup' => 10],
             ]),
         ],
     ]));
@@ -519,18 +519,18 @@ test('rejects invalid urls', function () {
 });
 
 
-test('rejects invalid backup settings', function () {
+test('rejects invalid keep settings', function () {
     expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'backup' => 'invalid',
-    ]))))->toThrow(RuntimeException::class, "'backup' must be an object");
+        'keep' => 'invalid',
+    ]))))->toThrow(RuntimeException::class, "'keep' must be an object");
 
     expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'backup' => ['keep' => 0],
-    ]))))->toThrow(RuntimeException::class, "'backup.keep' must be an integer >= 1");
+        'keep' => ['backup' => 0],
+    ]))))->toThrow(RuntimeException::class, "'keep.backup' must be an integer >= 1");
 
     expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'backup' => ['keep' => '3'],
-    ]))))->toThrow(RuntimeException::class, "'backup.keep' must be an integer >= 1");
+        'keep' => ['backup' => '3'],
+    ]))))->toThrow(RuntimeException::class, "'keep.backup' must be an integer >= 1");
 });
 
 
@@ -542,4 +542,75 @@ test('rejects root-level paths', function () {
     expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
         'webroot' => '/',
     ]))))->toThrow(RuntimeException::class, "root-level 'webroot'");
+});
+
+
+test('parses the deploy operator', function () {
+    $config = Config::load(deployConfigFile([
+        'operator' => ['name' => 'Sidney', 'email' => 'sidney@example.com'],
+        'targets' => ['staging' => deployConfigTarget()],
+    ]));
+
+    expect($config->requireOperator()->name)->toBe('Sidney')
+        ->and($config->requireOperator()->email)->toBe('sidney@example.com');
+});
+
+
+test('operator is optional until required', function () {
+    $config = Config::load(deployConfigFile([
+        'targets' => ['staging' => deployConfigTarget()],
+    ]));
+
+    expect($config->operator())->toBeNull()
+        ->and(fn () => $config->requireOperator())
+        ->toThrow(RuntimeException::class, 'operator.name is required');
+});
+
+
+test('rejects an operator without a name', function () {
+    expect(fn () => Config::load(deployConfigFile([
+        'operator' => ['email' => 'sidney@example.com'],
+        'targets' => ['staging' => deployConfigTarget()],
+    ])))->toThrow(RuntimeException::class, "operator.name");
+});
+
+
+test('parses release and event retention settings', function () {
+    $config = Config::load(deployConfigWithTarget(deployConfigTarget([
+        'keep' => ['release' => 7, 'event' => 50],
+    ])));
+
+    expect($config->target('staging')->releaseKeep)->toBe(7)
+        ->and($config->target('staging')->eventKeep)->toBe(50);
+});
+
+
+test('uses default release and event retention', function () {
+    $config = Config::load(deployConfigWithTarget(deployConfigTarget()));
+
+    expect($config->target('staging')->releaseKeep)->toBe(10)
+        ->and($config->target('staging')->eventKeep)->toBe(200);
+});
+
+
+test('rejects invalid release retention', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'keep' => ['release' => 0],
+    ]))))->toThrow(RuntimeException::class, "keep.release");
+});
+
+
+test('accepts the demonstration target outside the promotion chain', function () {
+    $config = Config::load(deployConfigFile([
+        'targets' => [
+            'demonstration' => deployConfigTarget([
+                'root' => deployRoot('/srv/demo'),
+                'webroot' => '/srv/demo/public_html',
+                'url' => 'https://demo.example.com',
+            ]),
+        ],
+    ]));
+
+    expect($config->target('demonstration')->name)->toBe('demonstration')
+        ->and(Config::PROMOTION)->not->toContain('demonstration');
 });

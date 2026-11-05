@@ -27,6 +27,10 @@ DOCKER_ARGS+=(
     -w /work
 )
 
+if [ -n "${DEPLOY_VERSION:-}" ]; then
+    DOCKER_ARGS+=(-e "DEPLOY_VERSION=$DEPLOY_VERSION")
+fi
+
 if [ "$(id -u)" != "0" ]; then
     PASSWD_FILE="$(mktemp)"
     trap 'rm -f "$PASSWD_FILE"' EXIT

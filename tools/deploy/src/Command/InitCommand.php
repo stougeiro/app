@@ -17,7 +17,7 @@ final class InitCommand extends DeployCommandAbstracted
 
     public function description(): string
     {
-        return 'Create local deploy directories and configuration';
+        return 'Create local deploy directories, stubs and configuration';
     }
 
     public function run(InputInterface $input, OutputInterface $output): int

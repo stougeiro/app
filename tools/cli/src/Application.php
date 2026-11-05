@@ -20,9 +20,13 @@ final class Application
     /** @var resource|null */
     protected $stdin;
 
+    /** @var array<string, array{description: string, version: string}> */
+    protected array $groups;
+
 
     /**
      * @param array<string, CommandInterface> $commands
+     * @param array<string, array{description: string, version: string}> $groups
      * @param resource|null $stdout
      * @param resource|null $stderr
      * @param resource|null $stdin
@@ -33,10 +37,12 @@ final class Application
         $stdout = null,
         $stderr = null,
         $stdin = null,
+        array $groups = [],
     ) {
         $this->stdout = $stdout;
         $this->stderr = $stderr;
         $this->stdin = $stdin;
+        $this->groups = $groups !== [] ? $groups : $this->deriveGroups();
     }
 
 
@@ -45,97 +51,117 @@ final class Application
     {
         $tokens = $argv;
 
-        if ($tokens === [] || $tokens[0] === 'help' || $tokens[0] === '--help' || $tokens[0] === '-h') {
-            $output = $this->output(new Input());
-            HelpRenderer::global($this->commands, self::globalOptions(), $output, $this->version);
+        if ($tokens === []) {
+            HelpRenderer::global($this->commands, self::globalOptions(), $this->output(), $this->version, $this->groups);
 
             return ExitCode::Success->value;
         }
 
-        if ($tokens[0] === '--version') {
-            $this->output(new Input())->line("sourcerer {$this->version}");
+        if ($tokens[0] === '--help' || $tokens[0] === '-h') {
+            return $this->imperativeHelp($tokens, null);
+        }
 
-            return ExitCode::Success->value;
+        if ($tokens[0] === '--version') {
+            return $this->imperativeVersion($tokens, null);
+        }
+
+        if (isset($this->groups[$tokens[0]]) && in_array($tokens[1] ?? null, ['--help', '--version'], true)) {
+            if ($tokens[1] === '--help') {
+                return $this->imperativeHelp($tokens, $tokens[0]);
+            }
+
+            return $this->imperativeVersion($tokens, $tokens[0]);
         }
 
         [$command, $consumed] = $this->resolve($tokens);
 
         if ($command === null) {
-            $output = $this->output(new Input());
-            $group = $this->group($tokens);
+            $output = $this->output();
 
-            if ($group !== null) {
-                HelpRenderer::group($group, $this->commands, self::globalOptions(), $output);
+            if (isset($this->groups[$tokens[0]]) && count($tokens) === 1) {
+                $this->renderToolHelp($tokens[0], $output);
 
                 return ExitCode::Success->value;
             }
 
-            $output->error("unknown command: {$tokens[0]}");
-            HelpRenderer::global($this->commands, self::globalOptions(), $output, $this->version);
+            $output->error('unknown command: '. implode(' ', $tokens));
+            HelpRenderer::global($this->commands, self::globalOptions(), $output, $this->version, $this->groups);
 
             return ExitCode::Invalid->value;
         }
 
         try {
-            $input = Input::parse(
-                array_slice($tokens, $consumed),
-                [...$command->options(), ...self::globalOptions()],
-            );
+            $input = Input::parse(array_slice($tokens, $consumed), $command->options());
         } catch (InvalidArgumentException $exception) {
-            $this->output(new Input())->error($exception->getMessage());
+            $this->output()->error($exception->getMessage());
 
             return ExitCode::Invalid->value;
         }
 
-        $output = $this->output($input);
-
-        if ($input->bool('help')) {
-            HelpRenderer::command($command, self::globalOptions(), $output);
-
-            return ExitCode::Success->value;
-        }
-
-        if ($input->bool('version')) {
-            $output->line("sourcerer {$this->version}");
-
-            return ExitCode::Success->value;
-        }
-
         try {
-            return $command->run($input, $output);
+            return $command->run($input, $this->output());
         } catch (Throwable $exception) {
-            $output->error($exception->getMessage());
+            $this->output()->error($exception->getMessage());
 
             return ExitCode::Failure->value;
         }
     }
 
 
-    /**
-     * Returns a command group when the tokens name a prefix and request help
-     * or no subcommand.
-     *
-     * @param list<string> $tokens
-     */
-    protected function group(array $tokens): ?string
+    /** @param list<string> $tokens */
+    protected function imperativeHelp(array $tokens, ?string $group): int
     {
-        $group = $tokens[0] ?? '';
+        $maximum = $group === null ? 1 : 2;
 
-        if ($group === '') {
-            return null;
+        if (count($tokens) !== $maximum) {
+            $this->output()->error('--help must be used alone');
+
+            return ExitCode::Invalid->value;
         }
 
-        if (isset($tokens[1]) && ! in_array($tokens[1], ['--help', '-h'], true)) {
-            return null;
+        $output = $this->output();
+
+        if ($group === null) {
+            HelpRenderer::global($this->commands, self::globalOptions(), $output, $this->version, $this->groups);
+        } else {
+            $this->renderToolHelp($group, $output);
         }
 
-        foreach ($this->commands as $name => $command) {
-            if (str_starts_with($name, $group .' ')) {
-                return $group;
-            }
+        return ExitCode::Success->value;
+    }
+
+
+    /** @param list<string> $tokens */
+    protected function imperativeVersion(array $tokens, ?string $group): int
+    {
+        $maximum = $group === null ? 1 : 2;
+
+        if (count($tokens) !== $maximum) {
+            $this->output()->error('--version must be used alone');
+
+            return ExitCode::Invalid->value;
         }
 
-        return null;
+        if ($group === null) {
+            $this->output()->line("sourcerer {$this->version}");
+        } else {
+            $this->output()->line($group .' '. $this->groups[$group]['version']);
+        }
+
+        return ExitCode::Success->value;
+    }
+
+
+    protected function renderToolHelp(string $group, Output $output): void
+    {
+        HelpRenderer::group(
+            $group,
+            $this->commands,
+            self::globalOptions(),
+            $output,
+            $this->groups[$group]['description'],
+            $this->groups[$group]['version'],
+        );
     }
 
 
@@ -166,14 +192,27 @@ final class Application
         return [$matched, $consumed];
     }
 
-    protected function output(Input $input): Output
+
+    /** @return array<string, array{description: string, version: string}> */
+    protected function deriveGroups(): array
     {
-        return new Output(
-            $this->stdout,
-            $this->stderr,
-            $input->bool('quiet'),
-            ! $input->bool('no-ansi'),
-        );
+        $groups = [];
+
+        foreach ($this->commands as $name => $command) {
+            $group = explode(' ', $name)[0];
+            $groups[$group] ??= [
+                'description' => $command->description(),
+                'version' => $this->version,
+            ];
+        }
+
+        return $groups;
+    }
+
+
+    protected function output(): Output
+    {
+        return new Output($this->stdout, $this->stderr);
     }
 
     /** @return list<Option> */
@@ -182,10 +221,6 @@ final class Application
         return [
             new Option('help', 'Show this help'),
             new Option('version', 'Show the version'),
-            new Option('json', 'Write structured output'),
-            new Option('quiet', 'Suppress output'),
-            new Option('no-ansi', 'Disable colors'),
-            new Option('no-interaction', 'Do not ask questions'),
         ];
     }
 }

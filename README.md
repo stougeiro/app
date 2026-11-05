@@ -77,26 +77,25 @@ composer install --no-dev --optimize-autoloader
 ```text
 .
 ├── application/
-│   ├── modules/      application modules
 │   ├── bootstrap/    runtime bootstrap
 │   ├── config/       application configuration
 │   ├── core/         app-level foundations
 │   ├── database/     database-facing code
+│   ├── module/       application modules
 │   ├── provider/     service providers
 │   └── storage/      cache, logs, sessions, uploads and temporary files
-├── sourcerer         unified tool entrypoint
-├── tools/contract/    shared tool contracts
-├── tools/cli/         pluggable CLI runtime
-├── tools/deploy/      deploy tool source
-├── deploy.json       local deploy configuration (not versioned)
+├── tests/            Pest tests
+├── tools/cli/        pluggable CLI runtime
+├── tools/contract/   shared tool contracts
+├── tools/deploy/     deploy tool source
 ├── .deploy/          local deploy state and secrets (not versioned)
 ├── public/           document root
-├── tests/            Pest tests
 ├── vendor/           Composer dependencies
+├── deploy.json       local deploy configuration (not versioned)
+├── sourcerer         unified tool entrypoint
 ├── composer.json
 ├── composer.lock
-├── phpunit.xml
-└── phpstan.neon
+└── ...
 ```
 
 The application must never be exposed through the web server. The document root
@@ -199,6 +198,8 @@ keeps the application runtime independent from deployment concerns.
 ./sourcerer deploy init
 ./sourcerer deploy check --target=staging
 ./sourcerer deploy push --target=staging
+./sourcerer deploy promote --from=staging
+./sourcerer deploy releases
 ./sourcerer deploy rollback --target=staging --list
 ```
 

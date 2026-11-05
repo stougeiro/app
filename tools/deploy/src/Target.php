@@ -25,6 +25,8 @@ class Target
         public readonly array $preserve,
         public readonly int $backupKeep,
         public readonly array $nestedWebroots = [],
+        public readonly int $releaseKeep = 10,
+        public readonly int $eventKeep = 200,
     ) {
     }
 

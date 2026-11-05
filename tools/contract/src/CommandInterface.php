@@ -9,6 +9,8 @@ interface CommandInterface
 
     public function description(): string;
 
+    public function usage(): string;
+
     /** @return list<Option> */
     public function options(): array;
 

@@ -5,6 +5,7 @@ namespace Tests\Feature\Deploy;
 use RuntimeException;
 use Tool\Cli\Output;
 use Tool\Deploy\ShellResult;
+use Tool\Deploy\Operator\Operator;
 use Tool\Deploy\Target;
 
 
@@ -39,6 +40,14 @@ final class DeployFixtures
             $nestedWebroots,
         );
     }
+
+
+
+    public static function operator(): Operator
+    {
+        return new Operator('Test Operator', 'test@example.com');
+    }
+
 
 
     public static function output(mixed $stream = null): Output
@@ -90,7 +99,6 @@ final class DeployFixtures
         ?string $manifest = null,
         bool $failComposer = false,
         bool $composerNoVendor = false,
-        bool $remoteEnv = false,
     ): FakeShell {
         return new FakeShell(function (array $command, ?string $stdin = null, ?string $cwd = null) use (
             $failWebrootRsync,
@@ -102,21 +110,34 @@ final class DeployFixtures
             $manifest,
             $failComposer,
             $composerNoVendor,
-            $remoteEnv,
         ): ShellResult {
             $binary = $command[0];
             $remote = $command[count($command) - 1];
 
-            if ($binary === 'ssh') {
-                if (str_contains($remote, 'application/env.json')) {
-                    return new ShellResult(0, $remoteEnv ? 'yes' : 'no', '');
+            if ($binary === 'tar' && in_array('-czf', $command, true)) {
+                $target = $command[array_search('-czf', $command, true) + 1] ?? null;
+
+                if (is_string($target)) {
+                    @file_put_contents($target, '');
                 }
 
+                return new ShellResult(0, '', '');
+            }
+
+            if ($binary === 'ssh' && (str_contains($remote, 'hash_file') || str_contains($remote, 'sha256sum') || str_contains($remote, 'shasum') || str_contains($remote, 'openssl dgst'))) {
+                return new ShellResult(0, hash('sha256', ''), '');
+            }
+
+            if ($binary === 'ssh') {
                 if (str_contains($remote, 'command -v rsync')) {
                     return new ShellResult(0, $hasRsync ? 'yes' : 'no', '');
                 }
 
                 if (str_contains($remote, 'ls -1dt')) {
+                    return new ShellResult(0, $snapshotList, '');
+                }
+
+                if (str_contains($remote, 'ls -1 ')) {
                     return new ShellResult(0, $snapshotList, '');
                 }
 
@@ -168,6 +189,13 @@ final class DeployFixtures
 
             if ($binary === 'curl') {
                 $url = $command[count($command) - 1];
+
+                if (str_contains($url, '_sr-check')) {
+                    return new ShellResult(0, json_encode([
+                        'php' => '8.2.20',
+                        'extensions' => ['pdo', 'pdo_sqlite'],
+                    ], JSON_THROW_ON_ERROR), '');
+                }
                 $status = str_ends_with($url, '/missing') ? $missingStatus : $rootStatus;
 
                 if (in_array('-o', $command, true)) {

@@ -30,6 +30,11 @@ final class RecordingCommand implements CommandInterface
         return 'recording command';
     }
 
+    public function usage(): string
+    {
+        return 'sourcerer '. $this->commandName;
+    }
+
     /** @return list<Option> */
     public function options(): array
     {

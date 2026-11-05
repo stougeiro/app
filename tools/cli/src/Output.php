@@ -2,7 +2,6 @@
 
 namespace Tool\Cli;
 
-use JsonException;
 use Tool\Contract\OutputInterface;
 
 
@@ -14,8 +13,6 @@ final class Output implements OutputInterface
     /** @var resource */
     protected $stderr;
 
-    protected bool $quiet;
-
     protected bool $ansi;
 
 
@@ -26,13 +23,10 @@ final class Output implements OutputInterface
     public function __construct(
         $stdout = null,
         $stderr = null,
-        bool $quiet = false,
-        bool $ansi = true,
     ) {
         $this->stdout = $stdout ?? STDOUT;
         $this->stderr = $stderr ?? STDERR;
-        $this->quiet = $quiet;
-        $this->ansi = $ansi && $this->supportsAnsi($this->stdout);
+        $this->ansi = $this->supportsAnsi($this->stdout);
     }
 
 
@@ -58,7 +52,7 @@ final class Output implements OutputInterface
 
     public function error(string $text): void
     {
-        if ($this->quiet || ! is_resource($this->stderr)) {
+        if ( ! is_resource($this->stderr)) {
             return;
         }
 
@@ -70,27 +64,9 @@ final class Output implements OutputInterface
         $this->line(str_repeat('-', 60));
     }
 
-    /** @param array<string, mixed> $data */
-    public function json(array $data): void
-    {
-        if ($this->quiet) {
-            return;
-        }
-
-        try {
-            $encoded = json_encode($data, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        } catch (JsonException $exception) {
-            $this->error('could not encode JSON: '. $exception->getMessage());
-
-            return;
-        }
-
-        $this->line($encoded);
-    }
-
     protected function write(string $text, string $color): void
     {
-        if ($this->quiet || ! is_resource($this->stdout)) {
+        if ( ! is_resource($this->stdout)) {
             return;
         }
 

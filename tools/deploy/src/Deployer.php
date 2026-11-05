@@ -10,6 +10,18 @@ use RuntimeException;
 use SplFileInfo;
 use Throwable;
 use Tool\Contract\OutputInterface;
+use Tool\Deploy\Release\ArtifactVerifier;
+use Tool\Deploy\Release\ReleaseHasher;
+use Tool\Deploy\Release\ReleaseId;
+use Tool\Deploy\Release\ReleaseManifest;
+use Tool\Deploy\Event\DeployEvent;
+use Tool\Deploy\Event\EventLog;
+use Tool\Deploy\Lock\TargetLock;
+use Tool\Deploy\Operator\Operator;
+use Tool\Deploy\Release\ReleaseStore;
+use Tool\Deploy\Requirements\ComposerRequirements;
+use Tool\Deploy\Requirements\WebProbe;
+use Tool\Deploy\Retirement\RedirectStub;
 
 
 class Deployer
@@ -22,7 +34,6 @@ class Deployer
 
     private bool $localEnvExists = false;
 
-    private bool $remoteEnvExists = false;
 
 
     public function __construct(
@@ -30,6 +41,7 @@ class Deployer
         private readonly Target $target,
         private readonly Shell $shell,
         private readonly OutputInterface $output,
+        private readonly Operator $operator,
     ) {
         $this->ssh = new Ssh($shell);
         $this->maintenance = new Maintenance($this->ssh);
@@ -82,31 +94,19 @@ class Deployer
         $this->out('transport: '. ($this->hasRsync ? 'rsync' : 'tar (fallback)'));
 
         $this->checkEnv();
+        $this->checkRequirements();
     }
 
 
     private function checkEnv(): void
     {
-        $target = $this->target;
         $local = $this->overridePath('application') .'/env.json';
-        $remote = $target->root .'/application/env.json';
 
         $this->localEnvExists = is_file($local);
-        $this->remoteEnvExists = false;
 
-        if ( ! $this->localEnvExists)
-        {
-            $this->remoteEnvExists = $this->ssh->must(
-                $target,
-                'if [ -f '. Ssh::quote($remote) .' ]; then echo yes; else echo no; fi',
-            )->output() === 'yes';
-        }
-
-        if ( ! $this->localEnvExists && ! $this->remoteEnvExists)
-        {
+        if ( ! $this->localEnvExists) {
             $this->out(
-                'warning: no env found for \''. $target->name .'\'; add '. $local
-                .' or create '. $remote,
+                "warning: no env override for '{$this->target->name}'; add {$local}",
             );
         }
     }
@@ -114,17 +114,34 @@ class Deployer
 
     private function assertEnvExists(): void
     {
-        if ($this->localEnvExists || $this->remoteEnvExists)
-        {
+        if ($this->localEnvExists) {
             return;
         }
 
         $local = $this->overridePath('application') .'/env.json';
-        $remote = $this->target->root .'/application/env.json';
 
         throw new RuntimeException(
-            "missing env for '{$this->target->name}': add {$local} or create {$remote}",
+            "missing env for '{$this->target->name}': add {$local}",
         );
+    }
+
+
+
+    private function checkRequirements(): void
+    {
+        $current = $this->readCurrent();
+
+        if (($current['status'] ?? null) === 'redirected') {
+            $this->out('requirements: skipped for redirected target');
+
+            return;
+        }
+
+        $requirements = ComposerRequirements::fromFile($this->projectRoot .'/composer.json');
+        $probe = (new WebProbe())->inspect($this->target, $this->shell);
+        $requirements->assert($probe);
+
+        $this->out('requirements ok: PHP '. $probe['php']);
     }
 
 
@@ -147,24 +164,59 @@ class Deployer
     }
 
 
-    public function push(): void
+    public function push(bool $forceLock = false): void
     {
-        $this->check();
-        $this->assertEnvExists();
+        $lock = new TargetLock($this->target, $this->shell, $this->operator, 'push');
+        $previousOwner = $lock->acquire($forceLock);
 
-        $build = $this->buildVendor();
+        if ($previousOwner !== null) {
+            $lockReleaseId = $this->currentReleaseId() ?? 'lock';
+            $this->writeEvent('lock.override', $lockReleaseId, null, $this->target->name, null, [
+                'forcedLock' => true,
+                'previousOwner' => $previousOwner,
+            ]);
+        }
+
+        $build = null;
+        $releaseArchive = null;
         $started = false;
         $snapshot = null;
 
         try
         {
+            $this->check();
+            $this->assertEnvExists();
+
+            $contentHash = (new ReleaseHasher())->hash($this->projectRoot);
+            $releaseId = ReleaseId::fromHash($contentHash);
+            $version = $this->releaseVersion();
+            $previousReleaseId = $this->currentReleaseId();
+
+            $build = $this->buildVendor();
+            $releaseArchive = $this->createReleaseArchive($build['vendor']);
+            $artifactHash = (new ArtifactVerifier())->hash($releaseArchive);
+
+            $manifest = new ReleaseManifest(
+                $releaseId,
+                $contentHash,
+                $version['version'],
+                $version['source'],
+                gmdate('c'),
+                $version['git'],
+                $previousReleaseId,
+                $this->operator->toArray(),
+                $artifactHash,
+            );
+
+            $store = new ReleaseStore($this->projectRoot);
+
             $this->out('enabling maintenance');
             $this->maintenance->enable($this->target);
             $started = true;
 
             $this->ensureRemoteDirs();
 
-            $snapshot = $this->snapshot();
+            $snapshot = $this->snapshot($manifest->toArray(), $previousReleaseId);
             $this->out('backup: '. $snapshot);
 
             $this->transfer($build['vendor']);
@@ -173,7 +225,25 @@ class Deployer
             $this->maintenance->disable($this->target);
 
             $this->verify();
+
+            $store->persist($manifest);
+            $artifactVerified = $this->uploadRelease($manifest, $releaseArchive);
+            $this->writeCurrent($manifest, $snapshot, 'current');
+            $this->writeLocalTarget([
+                'releaseId' => $manifest->releaseId,
+                'contentHash' => $manifest->contentHash,
+                'version' => $manifest->version,
+                'status' => 'current',
+                'backup' => $snapshot,
+            ]);
+            $this->writeEvent('push', $manifest->releaseId, null, $this->target->name, $snapshot, [
+                'artifactVerified' => $artifactVerified,
+            ]);
+
             $this->pruneBackups();
+            $this->pruneReleases($manifest->releaseId);
+            $this->pruneEvents();
+            $this->out('release: '. $manifest->releaseId .' ('. $manifest->version .')');
             $this->out('deploy complete');
         }
         catch (Throwable $error)
@@ -192,6 +262,7 @@ class Deployer
                     {
                         $this->maintenance->enable($this->target);
                         $this->restore($snapshot);
+                        $this->applyOverrides();
                         $this->maintenance->disable($this->target);
                         $this->verify();
                         $this->out('rollback complete');
@@ -207,9 +278,18 @@ class Deployer
         }
         finally
         {
-            $this->removeDir($build['dir']);
+            $lock->release();
+
+            if ($releaseArchive !== null && is_file($releaseArchive)) {
+                @unlink($releaseArchive);
+            }
+
+            if ($build !== null) {
+                $this->removeDir($build['dir']);
+            }
         }
     }
+
 
 
     /**
@@ -224,6 +304,7 @@ class Deployer
     public function rollback(?string $timestamp): void
     {
         $this->check();
+        $this->assertEnvExists();
 
         $backups = $this->snapshots();
 
@@ -254,9 +335,22 @@ class Deployer
         {
             $this->maintenance->enable($this->target);
             $started = true;
-            $this->restore($timestamp);
+            $restored = $this->restore($timestamp);
+            $previousReleaseId = $restored['previousReleaseId'] ?? null;
+
+            if (is_string($previousReleaseId) && $previousReleaseId !== '') {
+                $this->writeCurrentReleaseId($previousReleaseId);
+                $this->writeLocalTarget(['releaseId' => $previousReleaseId, 'status' => 'current']);
+            } else {
+                $this->deleteCurrent();
+                $this->writeLocalTarget(['status' => 'maintenance']);
+            }
+
+            $this->applyOverrides();
             $this->maintenance->disable($this->target);
             $this->verify();
+            $rollbackRelease = $restored['previousReleaseId'] ?? $restored['releaseId'] ?? 'unknown';
+            $this->writeEvent('rollback', is_string($rollbackRelease) ? $rollbackRelease : 'unknown', null, null, $timestamp);
             $this->out('rollback complete');
         }
         catch (Throwable $error)
@@ -440,6 +534,8 @@ class Deployer
             $target->root .'/vendor',
             $target->root .'/.deploy',
             $target->root .'/.deploy/backups',
+            $target->root .'/.deploy/releases',
+            $target->root .'/.deploy/events',
         ];
 
         $command = 'mkdir -p';
@@ -669,7 +765,8 @@ class Deployer
     }
 
 
-    private function snapshot(): string
+    /** @param array<string, mixed> $release */
+    private function snapshot(array $release = [], ?string $previousReleaseId = null): string
     {
         $target = $this->target;
         $name = gmdate('Ymd-His');
@@ -684,23 +781,31 @@ class Deployer
 
         $webroot .= ' -C '. Ssh::quote($target->webroot) .' .';
 
+        $storage = 'if [ -d '. Ssh::quote($target->root .'/application/storage') .' ]; '
+            .'then tar -czf '. Ssh::quote($directory .'/storage.tar.gz')
+            .' -C '. Ssh::quote($target->root) .' application/storage; fi';
+
         $this->ssh->must(
             $target,
             'mkdir -p '. Ssh::quote($directory)
             .' && tar -czf '. Ssh::quote($directory .'/root.tar.gz')
+            .' --exclude=application/storage'
+            .' --exclude=application/env.json'
             .' -C '. Ssh::quote($target->root)
             .' application vendor'
-            .' && '. $webroot,
+            .' && '. $webroot
+            .' && '. $storage,
         );
 
         $manifest = json_encode(
-            [
+            array_merge($release, [
                 'target' => $target->name,
                 'root' => $target->root,
                 'webroot' => $target->webroot,
                 'nestedWebroots' => $target->nestedWebroots,
                 'createdAt' => gmdate('c'),
-            ],
+                'previousReleaseId' => $previousReleaseId,
+            ]),
             JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
         ) ."\n";
 
@@ -716,7 +821,7 @@ class Deployer
 
     private function backupDirectory(): string
     {
-        return $this->target->root .'/.deploy/backups/'. $this->target->name;
+        return $this->target->root .'/.deploy/backups';
     }
 
 
@@ -731,6 +836,54 @@ class Deployer
             .' | xargs -r rm -rf',
         );
     }
+
+    private function pruneReleases(string $currentReleaseId): void
+    {
+        $directory = $this->target->root .'/.deploy/releases';
+        $result = $this->ssh->run($this->target, 'ls -1dt '. Ssh::quote($directory) .'/*/ 2>/dev/null || true');
+        $releases = [];
+
+        foreach (explode("\n", trim($result->stdout)) as $line) {
+            if (trim($line) === '') {
+                continue;
+            }
+
+            $releases[] = basename(rtrim(trim($line), '/'));
+        }
+
+        $keep = max(1, $this->target->releaseKeep);
+        $kept = [];
+
+        foreach ($releases as $releaseId) {
+            if ($releaseId === $currentReleaseId || count($kept) < $keep) {
+                $kept[] = $releaseId;
+            }
+        }
+
+        $remove = array_diff($releases, $kept);
+
+        foreach ($remove as $releaseId) {
+            $this->ssh->run(
+                $this->target,
+                'rm -rf '. Ssh::quote($directory .'/'. $releaseId),
+            );
+        }
+    }
+
+
+    private function pruneEvents(): void
+    {
+        $directory = $this->target->root .'/.deploy/events';
+        $keep = max(1, $this->target->eventKeep);
+
+        $this->ssh->run(
+            $this->target,
+            'ls -1t '. Ssh::quote($directory) .'/*.json 2>/dev/null'
+            .' | tail -n +'. ($keep + 1)
+            .' | xargs -r rm -f',
+        );
+    }
+
 
 
     /**
@@ -759,12 +912,13 @@ class Deployer
     }
 
 
-    private function restore(string $timestamp): void
+    /** @return array<string, mixed> */
+    private function restore(string $timestamp): array
     {
         $target = $this->target;
         $directory = $this->backupDirectory() .'/'. $timestamp;
 
-        $this->assertSnapshotLayout($directory);
+        $manifest = $this->assertSnapshotLayout($directory);
 
         $delete = 'find '. Ssh::quote($target->webroot) .' -mindepth 1 -maxdepth 1';
 
@@ -775,6 +929,11 @@ class Deployer
 
         $delete .= ' -exec rm -rf {} +';
 
+        $storage = 'if [ -f '. Ssh::quote($directory .'/storage.tar.gz') .' ]; '
+            .'then rm -rf '. Ssh::quote($target->root .'/application/storage')
+            .' && tar -xzf '. Ssh::quote($directory .'/storage.tar.gz')
+            .' -C '. Ssh::quote($target->root) .'; fi';
+
         $this->ssh->must(
             $target,
             'rm -rf '. Ssh::quote($target->root .'/application')
@@ -782,13 +941,18 @@ class Deployer
             .' && '. $delete
             .' && tar -xzf '. Ssh::quote($directory .'/root.tar.gz')
             .' -C '. Ssh::quote($target->root)
-            .' && tar -xzf '. Ssh::quote($directory .'/webroot.tar.gz')
-            .' -C '. Ssh::quote($target->webroot),
+            . ' && tar -xzf '. Ssh::quote($directory .'/webroot.tar.gz')
+            .' -C '. Ssh::quote($target->webroot)
+            .' && rm -f '. Ssh::quote($target->root .'/application/env.json')
+            .' && '. $storage,
         );
+
+        return $manifest;
     }
 
 
-    private function assertSnapshotLayout(string $directory): void
+    /** @return array<string, mixed> */
+    private function assertSnapshotLayout(string $directory): array
     {
         $result = $this->ssh->must(
             $this->target,
@@ -820,6 +984,603 @@ class Deployer
         {
             throw new RuntimeException('snapshot layout does not match the current target');
         }
+
+        /** @var array<string, mixed> $manifest */
+        return $manifest;
+    }
+
+
+    /** @return array{version: string, source: string, git: null|array{commit: string, branch: string, dirty: bool}} */
+    private function releaseVersion(): array
+    {
+        $versionFile = $this->projectRoot .'/VERSION';
+        $version = is_file($versionFile) ? trim((string) file_get_contents($versionFile)) : '';
+        $source = 'version';
+
+        if ($version === '') {
+            $env = getenv('DEPLOY_VERSION');
+            $version = is_string($env) ? trim($env) : '';
+            $source = 'env';
+        }
+
+        if ($version === '') {
+            $version = '0.0.0';
+            $source = 'none';
+        }
+
+        return ['version' => $version, 'source' => $source, 'git' => $this->gitInfo()];
+    }
+
+
+    /** @return null|array{commit: string, branch: string, dirty: bool} */
+    private function gitInfo(): ?array
+    {
+        $commit = $this->shell->run(['git', '-C', $this->projectRoot, 'rev-parse', '--short', 'HEAD']);
+
+        if ( ! $commit->ok() || trim($commit->stdout) === '') {
+            return null;
+        }
+
+        $branch = $this->shell->run(['git', '-C', $this->projectRoot, 'rev-parse', '--abbrev-ref', 'HEAD']);
+        $status = $this->shell->run(['git', '-C', $this->projectRoot, 'status', '--porcelain']);
+
+        return [
+            'commit' => trim($commit->stdout),
+            'branch' => $branch->ok() ? trim($branch->stdout) : '',
+            'dirty' => $status->ok() && trim($status->stdout) !== '',
+        ];
+    }
+
+
+    private function createReleaseArchive(string $vendor): string
+    {
+        $archive = $this->temporaryArchive();
+
+        $this->shell->mustRun([
+            'tar', '-czf', $archive,
+            '--exclude=application/storage',
+            '--exclude=application/env.json',
+            '--exclude=public/.maintenance',
+            '-C', $this->projectRoot,
+            'application', 'public', 'composer.json', 'composer.lock',
+            '-C', dirname($vendor),
+            'vendor',
+        ]);
+
+        if ( ! is_file($archive)) {
+            throw new RuntimeException('release archive was not created');
+        }
+
+        return $archive;
+    }
+
+
+        private function uploadRelease(ReleaseManifest $manifest, string $archive): ?bool
+    {
+        $target = $this->target;
+        $directory = $target->root .'/.deploy/releases/'. $manifest->releaseId;
+        $remoteArchive = $directory .'/release.tar.gz';
+
+        $this->ssh->must($target, 'mkdir -p '. Ssh::quote($directory));
+        $this->upload($archive, $remoteArchive);
+
+        $verified = null;
+
+        if ($manifest->artifactHash === null) {
+            $this->out('warning: release has no artifact hash; integrity not verified');
+        } else {
+            $verification = (new ArtifactVerifier())->verifyRemote(
+                $target,
+                $this->shell,
+                $remoteArchive,
+                $manifest->artifactHash,
+            );
+
+            if ( ! $verification['available']) {
+                $this->out('warning: remote artifact hash tool not found; integrity not verified');
+            } elseif ( ! $verification['ok']) {
+                throw new RuntimeException("artifact hash mismatch: {$manifest->releaseId}");
+            } else {
+                $verified = true;
+            }
+        }
+
+        try {
+            $json = json_encode(
+                $manifest->toArray(),
+                JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
+            ) ."\n";
+        } catch (JsonException $exception) {
+            throw new RuntimeException('could not encode release manifest: '. $exception->getMessage(), 0, $exception);
+        }
+
+        $this->writeRemoteFile($directory .'/manifest.json', $json);
+
+        return $verified;
+    }
+
+
+
+    private function writeCurrent(ReleaseManifest $manifest, string $snapshot, string $status, ?string $previousReleaseId = null, ?string $promotedFrom = null): void
+    {
+        $data = [
+            'releaseId' => $manifest->releaseId,
+            'contentHash' => $manifest->contentHash,
+            'version' => $manifest->version,
+            'status' => $status,
+            'deployedAt' => gmdate('c'),
+            'previousReleaseId' => $previousReleaseId ?? $manifest->previousReleaseId,
+            'backup' => $snapshot,
+        ];
+
+        if ($promotedFrom !== null) {
+            $data['promotedFrom'] = $promotedFrom;
+        }
+
+        $this->writeRemoteJson($this->target->root .'/.deploy/current.json', $data);
+    }
+
+
+    /** @param array<string, mixed> $context */
+    private function writeEvent(
+        string $action,
+        string $releaseId,
+        ?string $from = null,
+        ?string $to = null,
+        ?string $backup = null,
+        array $context = [],
+    ): void {
+        try {
+            (new EventLog($this->projectRoot, $this->target, $this->shell))->write(new DeployEvent(
+                $action,
+                $releaseId,
+                $this->target->name,
+                $from,
+                $to,
+                gmdate('c'),
+                $this->operator->toArray(),
+                $backup,
+                context: $context,
+            ));
+        } catch (Throwable $exception) {
+            $this->out('warning: could not write deploy event: '. $exception->getMessage());
+        }
+    }
+
+
+    /** @param array<string, mixed> $data */
+    private function writeLocalTarget(array $data): void
+    {
+        $directory = $this->projectRoot .'/.deploy/targets';
+
+        if ( ! is_dir($directory) && ! mkdir($directory, 0700, true) && ! is_dir($directory)) {
+            throw new RuntimeException("could not create local target directory: {$directory}");
+        }
+
+        try {
+            $json = json_encode(
+                ['target' => $this->target->name, 'updatedAt' => gmdate('c')] + $data,
+                JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
+            );
+        } catch (JsonException $exception) {
+            throw new RuntimeException('could not encode local target metadata: '. $exception->getMessage(), 0, $exception);
+        }
+
+        if (file_put_contents($directory .'/'. $this->target->name .'.json', $json ."\n") === false) {
+            throw new RuntimeException('could not write local target metadata');
+        }
+    }
+
+
+    private function writeCurrentReleaseId(string $releaseId): void
+    {
+        $this->writeRemoteJson($this->target->root .'/.deploy/current.json', [
+            'releaseId' => $releaseId,
+            'status' => 'current',
+        ]);
+    }
+
+
+    private function deleteCurrent(): void
+    {
+        $this->ssh->run(
+            $this->target,
+            'rm -f '. Ssh::quote($this->target->root .'/.deploy/current.json'),
+        );
+    }
+
+
+    /** @return null|array<string, mixed> */
+    private function readCurrent(): ?array
+    {
+        $result = $this->ssh->must(
+            $this->target,
+            'if [ -f '. Ssh::quote($this->target->root .'/.deploy/current.json') .' ]; '
+            .'then cat '. Ssh::quote($this->target->root .'/.deploy/current.json')
+            .'; else printf __MISSING__; fi',
+        );
+
+        if (trim($result->stdout) === '__MISSING__' || trim($result->stdout) === '') {
+            return null;
+        }
+
+        $data = json_decode($result->stdout, true);
+
+        if ( ! is_array($data)) {
+            return null;
+        }
+
+        /** @var array<string, mixed> $data */
+        return $data;
+
+    }
+
+
+    private function currentReleaseId(): ?string
+    {
+        $current = $this->readCurrent();
+        $releaseId = $current['releaseId'] ?? null;
+
+        return is_string($releaseId) && $releaseId !== '' ? $releaseId : null;
+    }
+
+
+    /** @param array<string, mixed> $data */
+    private function writeRemoteJson(string $path, array $data): void
+    {
+        try {
+            $json = json_encode(
+                $data,
+                JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES,
+            ) ."\n";
+        } catch (JsonException $exception) {
+            throw new RuntimeException('could not encode remote JSON: '. $exception->getMessage(), 0, $exception);
+        }
+
+        $this->writeRemoteFile($path, $json);
+    }
+
+
+    private function writeRemoteFile(string $path, string $contents): void
+    {
+        $this->ssh->must(
+            $this->target,
+            'cat > '. Ssh::quote($path),
+            $contents,
+        );
+    }
+
+
+    private function download(string $remote, string $local): void
+    {
+        $target = $this->target;
+        $scp = [
+            'scp',
+            '-P', (string) $target->sshPort,
+            '-o', 'BatchMode=yes',
+            '-o', 'ConnectTimeout=15',
+        ];
+
+        $identity = $target->identityPath();
+
+        if ($identity !== null) {
+            $scp[] = '-i';
+            $scp[] = $identity;
+        }
+
+        $scp[] = $target->sshTarget() .':'. $remote;
+        $scp[] = $local;
+
+        $this->shell->mustRun($scp);
+    }
+
+
+        /** @return array{archive: string, manifest: ReleaseManifest, temporary: bool} */
+    public function exportRelease(): array
+    {
+        $current = $this->readCurrent();
+
+        if ($current === null) {
+            throw new RuntimeException('source has no current release');
+        }
+
+        $status = $current['status'] ?? null;
+
+        if ($status !== null && $status !== 'current') {
+            throw new RuntimeException('source is not in current state');
+        }
+
+        $releaseId = $current['releaseId'] ?? null;
+
+        if ( ! is_string($releaseId) || $releaseId === '') {
+            throw new RuntimeException('source has no current release');
+        }
+
+        $remoteArchive = $this->target->root .'/.deploy/releases/'. $releaseId .'/release.tar.gz';
+        $remoteManifest = $this->target->root .'/.deploy/releases/'. $releaseId .'/manifest.json';
+        $available = $this->ssh->run(
+            $this->target,
+            'test -f '. Ssh::quote($remoteArchive)
+            .' && test -f '. Ssh::quote($remoteManifest),
+        );
+
+        if ( ! $available->ok()) {
+            throw new RuntimeException("source release artifact not found: {$releaseId}");
+        }
+
+        $directory = sys_get_temp_dir() .'/stougeiro-release-'. bin2hex(random_bytes(6));
+        mkdir($directory, 0700, true);
+
+        $archive = $directory .'/release.tar.gz';
+        $manifestPath = $directory .'/manifest.json';
+
+        $this->download($remoteArchive, $archive);
+        $this->download($remoteManifest, $manifestPath);
+
+        $raw = file_get_contents($manifestPath);
+
+        if ($raw === false) {
+            throw new RuntimeException('could not read downloaded release manifest');
+        }
+
+        $data = json_decode($raw, true);
+
+        if ( ! is_array($data)) {
+            throw new RuntimeException('invalid downloaded release manifest');
+        }
+
+        /** @var array<string, mixed> $data */
+        $manifest = ReleaseManifest::fromArray($data);
+
+        if ($manifest->artifactHash !== null) {
+            $actual = (new ArtifactVerifier())->hash($archive);
+
+            if ( ! hash_equals($manifest->artifactHash, $actual)) {
+                throw new RuntimeException("artifact hash mismatch: {$releaseId}");
+            }
+        }
+
+        return [
+            'archive' => $archive,
+            'manifest' => $manifest,
+            'temporary' => true,
+        ];
+    }
+
+
+
+        public function receiveRelease(string $archive, ReleaseManifest $manifest, string $promotedFrom, bool $forceLock = false): void
+    {
+        $lock = new TargetLock($this->target, $this->shell, $this->operator, 'promote');
+        $previousOwner = $lock->acquire($forceLock);
+
+        if ($previousOwner !== null) {
+            $lockReleaseId = $this->currentReleaseId() ?? 'lock';
+            $this->writeEvent('lock.override', $lockReleaseId, null, $this->target->name, null, [
+                'forcedLock' => true,
+                'previousOwner' => $previousOwner,
+            ]);
+        }
+
+        $started = false;
+        $snapshot = null;
+        $remoteArchive = $this->target->root .'/.deploy/incoming-release-'. bin2hex(random_bytes(4)) .'.tar.gz';
+
+        try {
+            $this->check();
+            $this->assertEnvExists();
+
+            $previousReleaseId = $this->currentReleaseId();
+            $store = new ReleaseStore($this->projectRoot);
+
+            $this->maintenance->enable($this->target);
+            $started = true;
+
+            $this->ensureRemoteDirs();
+            $snapshot = $this->snapshot($manifest->toArray(), $previousReleaseId);
+            $this->out('backup: '. $snapshot);
+
+            $this->upload($archive, $remoteArchive);
+            $this->extractRelease($remoteArchive);
+            $this->applyOverrides();
+
+            $this->maintenance->disable($this->target);
+            $this->verify();
+
+            $store->persist($manifest);
+            $artifactVerified = $this->uploadRelease($manifest, $archive);
+            $this->writeCurrent($manifest, $snapshot, 'current', $previousReleaseId, $promotedFrom);
+            $this->writeLocalTarget([
+                'releaseId' => $manifest->releaseId,
+                'contentHash' => $manifest->contentHash,
+                'version' => $manifest->version,
+                'status' => 'current',
+                'backup' => $snapshot,
+                'promotedFrom' => $promotedFrom,
+            ]);
+            $this->writeEvent('promote', $manifest->releaseId, $promotedFrom, $this->target->name, $snapshot, [
+                'artifactVerified' => $artifactVerified,
+            ]);
+
+            $this->pruneBackups();
+            $this->pruneReleases($manifest->releaseId);
+            $this->pruneEvents();
+            $this->out('release: '. $manifest->releaseId .' ('. $manifest->version .')');
+            $this->out('promote complete');
+        }
+        catch (Throwable $error) {
+            if ($started) {
+                $this->out('error: '. $error->getMessage());
+
+                if ($snapshot === null) {
+                    $this->out('no backup: maintenance remains active');
+                } else {
+                    try {
+                        $this->maintenance->enable($this->target);
+                        $this->restore($snapshot);
+                        $this->applyOverrides();
+                        $this->maintenance->disable($this->target);
+                        $this->verify();
+                        $this->out('rollback complete');
+                    } catch (Throwable $rollback) {
+                        $this->out('ROLLBACK FAILED, maintenance remains active: '. $rollback->getMessage());
+                    }
+                }
+            }
+
+            throw $error;
+        }
+        finally {
+            $lock->release();
+        }
+    }
+
+
+
+    public function retire(string $redirectUrl, string $promotedTo): void
+    {
+        if ($this->target->nestedWebroots !== []) {
+            throw new RuntimeException('cannot retire a target with nested webroots');
+        }
+
+        $current = $this->readCurrent();
+
+        if ($current === null) {
+            throw new RuntimeException('source has no current release');
+        }
+
+        $status = $current['status'] ?? null;
+
+        if ($status !== null && $status !== 'current') {
+            throw new RuntimeException('source is not in current state');
+        }
+
+        $stub = (new RedirectStub($this->projectRoot))->render($redirectUrl);
+        $started = false;
+        $snapshot = null;
+
+        try {
+            $this->maintenance->enable($this->target);
+            $started = true;
+            $snapshot = $this->snapshot($current, null);
+
+            $this->writeRemoteFile($this->target->webroot .'/index.php', $stub['index']);
+            $this->writeRemoteFile($this->target->webroot .'/.htaccess', $stub['htaccess']);
+
+            $this->maintenance->disable($this->target);
+            $this->assertRedirect($this->target->url, $redirectUrl);
+
+            $this->removeSourceDeployment();
+
+            $this->writeRemoteJson($this->target->root .'/.deploy/current.json', [
+                'releaseId' => $current['releaseId'] ?? null,
+                'contentHash' => $current['contentHash'] ?? null,
+                'version' => $current['version'] ?? null,
+                'status' => 'redirected',
+                'redirectTo' => $redirectUrl,
+                'promotedTo' => $promotedTo,
+                'promotedAt' => gmdate('c'),
+            ]);
+
+            $this->writeLocalTarget([
+                'releaseId' => $current['releaseId'] ?? null,
+                'contentHash' => $current['contentHash'] ?? null,
+                'version' => $current['version'] ?? null,
+                'status' => 'redirected',
+                'redirectTo' => $redirectUrl,
+                'promotedTo' => $promotedTo,
+            ]);
+
+            $retireRelease = $current['releaseId'] ?? 'unknown';
+            $this->writeEvent('retire', is_string($retireRelease) ? $retireRelease : 'unknown', $this->target->name, $promotedTo, $snapshot);
+
+            $this->out('source retired: redirecting to '. $redirectUrl);
+        }
+        catch (Throwable $error) {
+            if ($started && $snapshot !== null) {
+                try {
+                    $this->maintenance->enable($this->target);
+                    $this->restore($snapshot);
+                    $this->applyOverrides();
+                } catch (Throwable $rollback) {
+                    $this->out('RETIRE ROLLBACK FAILED, maintenance remains active: '. $rollback->getMessage());
+                }
+            }
+
+            throw $error;
+        }
+    }
+
+
+    private function extractRelease(string $remoteArchive): void
+    {
+        $target = $this->target;
+
+        $delete = 'find '. Ssh::quote($target->webroot) .' -mindepth 1 -maxdepth 1'
+            .' ! -name '. Ssh::quote('.maintenance');
+
+        foreach ($target->nestedWebroots as $entry) {
+            $delete .= ' ! -name '. Ssh::quote($entry);
+        }
+
+        $delete .= ' -exec rm -rf {} +';
+
+        $applicationDelete = 'find '. Ssh::quote($target->root .'/application') .' -mindepth 1 -maxdepth 1'
+            .' ! -name '. Ssh::quote('storage')
+            .' -exec rm -rf {} +';
+
+        $this->ssh->must(
+            $target,
+            'rm -rf '. Ssh::quote($target->root .'/vendor')
+            .' && '. $applicationDelete
+            .' && tar -xzf '. Ssh::quote($remoteArchive)
+            .' -C '. Ssh::quote($target->root)
+            .' application vendor composer.json composer.lock'
+            .' && '. $delete
+            .' && tar -xzf '. Ssh::quote($remoteArchive)
+            .' -C '. Ssh::quote($target->webroot)
+            .' --strip-components=1 public'
+            .' && rm -f '. Ssh::quote($remoteArchive),
+        );
+    }
+
+
+    private function removeSourceDeployment(): void
+    {
+        $target = $this->target;
+
+        $delete = 'find '. Ssh::quote($target->webroot) .' -mindepth 1 -maxdepth 1'
+            .' ! -name '. Ssh::quote('index.php')
+            .' ! -name '. Ssh::quote('.htaccess')
+            .' -exec rm -rf {} +';
+
+        $this->ssh->must(
+            $target,
+            'rm -rf '. Ssh::quote($target->root .'/application')
+            .' '. Ssh::quote($target->root .'/vendor')
+            .' && '. $delete,
+        );
+    }
+
+
+    private function assertRedirect(string $url, string $expected): void
+    {
+        $result = $this->shell->run([
+            'curl', '-sS', '-o', '/dev/null', '-w', '%{http_code} %{redirect_url}',
+            '--max-time', '20', $url,
+        ]);
+
+        $parts = preg_split('/\s+/', trim($result->output())) ?: [];
+        $status = $parts[0] ?? '000';
+        $location = $parts[1] ?? '';
+
+        if ($status !== '302' || rtrim($location, '/') !== rtrim($expected, '/')) {
+            throw new RuntimeException(
+                "retire: expected 302 to {$expected}, got {$status} {$location}",
+            );
+        }
+
+        $this->out('retire verify: 302 to '. $expected);
     }
 
 

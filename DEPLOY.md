@@ -17,9 +17,20 @@ tools/deploy/                deploy tool and example
 tools/cli/Dockerfile         tool runtime image
 tools/deploy/src/            deploy classes
 tools/deploy/src/Command/    deploy commands
+tools/deploy/resources/stub/ default redirect stubs for retired targets
 tools/deploy/deploy.example.json
 deploy.json                  local configuration (not versioned)
 .deploy/                     local state and secrets (not versioned)
+```
+
+Local `.deploy/` also contains:
+
+```text
+.deploy/stub/index.php       redirect stub used when a target is retired
+.deploy/stub/.htaccess       rewrite stub used when a target is retired
+.deploy/releases/            local release manifest mirror
+.deploy/events/              local deploy event mirror
+.deploy/targets/             local release metadata per target
 ```
 
 `deploy.json` and `.deploy/` are ignored by Git. They contain target addresses
@@ -28,7 +39,7 @@ and SSH references.
 The local public directory is `public/`. On the server, the target `webroot`
 usually points to `public_html/` or another document root.
 
-## Requirements
+## Local requirements
 
 Docker is the only local requirement. The tool image is built on demand from
 `tools/cli/Dockerfile` and contains PHP 8.2, Composer, rsync, OpenSSH, scp,
@@ -40,6 +51,92 @@ rebuild it explicitly:
 ```bash
 docker build -t stougeiro/sourcerer:local tools/cli
 ```
+
+## Operator
+
+Every `deploy.json` must declare the person running the tool:
+
+```json
+{
+  "operator": {
+    "name": "Developer",
+    "email": "developer@example.com"
+  }
+}
+```
+
+- `operator.name` is required.
+- `operator.email` is optional.
+- `check`, `push`, `promote` and `rollback` fail without it.
+- `deploy releases` does not require it.
+- Identity is declarative metadata, not authentication.
+
+## Production lock
+
+Only `production` uses a deploy lock:
+
+```text
+<root>/.deploy/lock/owner.json
+```
+
+- `push --target=production` and `promote` into production acquire it.
+- development/staging do not.
+- A valid lock blocks the operation before build, maintenance, backup or transfer.
+- Locks older than 3h are considered stale and replaced automatically.
+- `--force` on `push`/`promote` replaces a valid production lock and writes a
+  `lock.override` event with the previous owner.
+
+## Requirements
+
+Requirements are read from `composer.json`:
+
+- `require.php` defines the minimum PHP version.
+- `require.ext-*` defines required extensions.
+- `require-dev` is ignored.
+
+`check` and `push` validate the **web PHP runtime** via a temporary probe:
+
+```text
+public/_sr-check-<random>.php
+```
+
+The probe reports PHP version and loaded extensions, then is removed. Failures
+abort before maintenance and transfer. Redirected targets skip the probe because
+their stub `.htaccess` redirects every path.
+
+## Artifact integrity
+
+Each release manifest stores:
+
+```json
+"artifactHash": "sha256:..."
+```
+
+The hash is calculated by the local tool over `release.tar.gz`.
+
+After upload, the remote hash is checked using `php`, `sha256sum`, `shasum` or
+`openssl`. If no remote hash tool exists, deploy warns and records
+`artifactVerified: false` in the event. A hash mismatch aborts and rolls back.
+
+On promote, the downloaded tarball is always verified locally before it is sent
+to the destination.
+
+## Retention
+
+Remote retention is configured per target/defaults:
+
+```json
+"keep": {
+  "backup": 3,
+  "release": 10,
+  "event": 200
+}
+```
+
+- pruning runs after a successful push/promote;
+- the current release is never removed;
+- local `.deploy/releases` and `.deploy/events` keep the full mirrored history;
+- `keep.backup` controls remote backups.
 
 ## Quick start
 
@@ -66,8 +163,12 @@ Deploy:
 
 ## Targets
 
-`deploy.json` has `defaults` and `targets`. The only valid target names are
-`development`, `staging` and `production`.
+`deploy.json` has `defaults` and `targets`. Valid target names are
+`development`, `staging`, `production` and `demonstration`.
+
+`demonstration` is optional and outside the promotion chain. It is deployed
+only with `push`, `check`, `rollback` and inspected with `releases`; it cannot
+be promoted or receive a promotion.
 
 ```json
 {
@@ -84,8 +185,10 @@ Deploy:
     "preserve": [
       "/.well-known/***"
     ],
-    "backup": {
-      "keep": 3
+    "keep": {
+      "backup": 3,
+      "release": 10,
+      "event": 200
     }
   },
   "targets": {
@@ -96,11 +199,18 @@ Deploy:
       "webroot": "/home/deploy/domains/example.com/public_html/staging",
       "url": "https://staging.example.com"
     },
+    "demonstration": {
+      "root": {
+        "dir": "demo"
+      },
+      "webroot": "/home/deploy/domains/example.com/public_html/demo",
+      "url": "https://demo.example.com"
+    },
     "production": {
       "webroot": "/home/deploy/domains/example.com/public_html",
       "url": "https://example.com",
-      "backup": {
-        "keep": 5
+      "keep": {
+        "backup": 5
       }
     }
   }
@@ -121,7 +231,9 @@ Deploy:
 | `webroot` | Absolute remote directory that receives the contents of `public/` |
 | `url` | Public application URL used by verification |
 | `preserve` | Webroot paths protected from deletion during transfer |
-| `backup.keep` | Number of remote backups to keep; default `3`, minimum `1` |
+| `keep.backup` | Remote backups to keep; default `3`, minimum `1` |
+| `keep.release` | Remote releases to keep; default `10`, minimum `1` |
+| `keep.event` | Remote events to keep; default `200`, minimum `1` |
 
 `root` is an object:
 
@@ -191,22 +303,16 @@ They are applied after the build:
 
 Override transfers never use `--delete`; they only add or replace files.
 
-Environment values belong in an override:
-
-```text
-.deploy/override/production/application/env.json
-```
-
-No environment file is managed by the deploy tool.
-
-`check` warns when neither the local override nor the remote file exists:
+Every target must provide its environment through the local override:
 
 ```text
 .deploy/override/<target>/application/env.json
-root/application/env.json
 ```
 
-`push` aborts before maintenance and transfer when both are missing.
+Remote `application/env.json` is never read, reused, promoted or restored from
+backup. `check` warns when the override is missing; `push` and `rollback` fail
+before making changes.
+
 
 ## Uploads
 
@@ -226,30 +332,132 @@ restored by `rollback`.
 |---|---|
 | `./sourcerer deploy init` | Creates `.deploy/` directories and copies the example to `deploy.json` |
 | `./sourcerer deploy check --target=<name>` | Verifies SSH, writable paths, storage and transport |
-| `./sourcerer deploy push --target=<name>` | Builds vendor, backs up, transfers, verifies and prunes backups |
+| `./sourcerer deploy push --target=<name>` | Builds vendor, creates a release, backs up, transfers, verifies and prunes backups |
+| `./sourcerer deploy promote --from=<name>` | Promotes the current release to the next target and retires the source |
+| `./sourcerer deploy releases` | Shows local release history |
+| `./sourcerer deploy releases --target=<name>` | Analyzes a single target in local history |
+| `./sourcerer deploy releases --sync` | Syncs all targets; must be used alone |
 | `./sourcerer deploy rollback --target=<name> --list` | Lists backups for the target |
 | `./sourcerer deploy rollback --target=<name> [--timestamp=<Ymd-His>]` | Restores a backup; latest when omitted |
 
 `init` does not accept `--target`. `--list` and `--timestamp` are only valid for
-`rollback` and cannot be used together.
+`rollback` and cannot be used together. `--sync` must be used alone
+and cannot be combined with `--target`. `--force` on `push`/`promote` only
+overrides an active production lock.
 
 ## Push behavior
 
 A push:
 
 1. validates the target;
-2. checks SSH, paths, storage and transport;
-3. builds vendor with `composer install --no-dev --classmap-authoritative`;
-4. enables maintenance;
-5. creates a remote backup of the current state;
-6. transfers `application/`, `public/` and `vendor/`;
-7. applies overrides;
-8. disables maintenance;
-9. verifies `GET url` returns `200` and `GET url/missing` returns `404`;
-10. prunes old backups.
+2. acquires the production lock when applicable;
+3. checks SSH, paths, storage, requirements and transport;
+4. computes the release hash and id;
+5. builds vendor with `composer install --no-dev --classmap-authoritative`;
+6. creates the clean release archive and artifact hash;
+7. enables maintenance;
+8. creates a remote backup of the current state, including storage;
+9. transfers `application/`, `public/` and `vendor/`;
+10. applies overrides;
+11. disables maintenance;
+12. verifies `GET url` returns `200` and `GET url/missing` returns `404`;
+13. uploads the release tarball, verifies its hash when possible, and mirrors only the manifest locally;
+14. writes `.deploy/current.json` and a push event;
+15. prunes old backups, releases and events;
+16. syncs manifests/events from all targets best-effort.
 
 On failure, the push re-enables maintenance, restores the backup created at the
 start and verifies again. If the restore fails, maintenance remains active.
+
+## Releases and promote
+
+Every successful push creates an immutable release.
+
+Local mirror:
+
+```text
+.deploy/releases/<releaseId>/manifest.json
+```
+
+Target:
+
+```text
+<root>/.deploy/releases/<releaseId>/
+├── release.tar.gz
+└── manifest.json
+```
+
+`release.tar.gz` contains `application/` (without `env.json`/`storage`),
+`public/` (without `.maintenance`), `vendor/` and `composer.json`/`composer.lock`.
+The local mirror never stores the tarball.
+
+Promotion is rigid:
+
+```text
+development → staging → production
+```
+
+```bash
+./sourcerer deploy promote --from=development
+./sourcerer deploy promote --from=staging
+```
+
+`promote` never skips a target. It reads the source `current.json`, downloads
+the release artifact from the source target, deploys it to the next target,
+applies that target's overrides and verifies it. The same `releaseId` is
+preserved.
+
+After a successful promotion, the source target is retired:
+
+- maintenance is enabled;
+- the webroot receives only `index.php` and `.htaccess` stubs;
+- `index.php` redirects with `302` to the next target URL;
+- `.htaccess` routes every path to `index.php`;
+- `application/`, `vendor/` and storage are removed, including `env.json`;
+- the target root keeps only `.deploy/`;
+- `.deploy/` remains, including backups, releases and events.
+
+Stubs are customizable in `.deploy/stub/`. The canonical `index.php` placeholder
+is `%url%`. Missing stub files fall back to the tool defaults in
+`tools/deploy/resources/stub/`.
+
+A target with nested webroots cannot be retired; promotion aborts.
+
+## Release history
+
+Events are append-only and immutable:
+
+```text
+<root>/.deploy/events/<UTC>-<target>-<action>-<releaseId>-<rand>.json
+```
+
+Local mirrors:
+
+```text
+.deploy/releases/<releaseId>/manifest.json
+.deploy/events/<event>.json
+```
+
+Reading is always local:
+
+```bash
+./sourcerer deploy releases
+./sourcerer deploy releases --target=staging
+```
+
+Synchronization is explicit and always covers every target:
+
+```bash
+./sourcerer deploy releases --sync
+```
+
+`--sync` does not render the release tree and must be used alone. It tries every
+target, reports success/error per target, continues on failure and exits
+non-zero if any target fails.
+
+After a successful `push` or `promote`, the same all-target sync runs
+best-effort and never changes the deploy result.
+
 
 ## Maintenance
 
@@ -262,14 +470,20 @@ does not boot the application.
 Backups are remote-only:
 
 ```text
-root/.deploy/backups/<target>/<Ymd-His>/
+root/.deploy/backups/<Ymd-His>/
 ├── root.tar.gz
 ├── webroot.tar.gz
+├── storage.tar.gz
 └── manifest.json
 ```
 
-`root.tar.gz` contains `application/` and `vendor/`. `webroot.tar.gz` contains
-the target webroot, excluding direct child webroots of other targets.
+`root.tar.gz` contains `application/` and `vendor/`, excluding `storage/` and
+`env.json`. `webroot.tar.gz` contains the target webroot, excluding direct
+child webroots of other targets. `storage.tar.gz` is created when
+`application/storage` exists.
+
+The deployment manifest also records the current `releaseId`, `contentHash`,
+`version` and `previousReleaseId`.
 
 `rollback --list` prints available backups, newest first. With `--timestamp`,
 the matching backup is restored. Without it, the newest backup is used.
@@ -280,9 +494,11 @@ Rollback:
 2. enables maintenance;
 3. removes `application/`, `vendor/` and the target webroot contents;
 4. preserves direct child webroots;
-5. extracts the backup;
-6. disables maintenance;
-7. verifies `200` and `404`.
+5. extracts the backup and storage;
+6. removes any restored `application/env.json`;
+7. reapplies the local override, including env;
+8. disables maintenance;
+9. verifies `200` and `404`.
 
 ## Verification and tests
 

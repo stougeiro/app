@@ -25,9 +25,9 @@ final class RollbackCommand extends DeployCommandAbstracted
     protected function commandOptions(): array
     {
         return [
-            new Option('target', 'Deploy target', true),
-            new Option('list', 'List available backups'),
-            new Option('timestamp', 'Backup timestamp (Ymd-His)', true),
+            new Option('target', 'Target to operate on (development, staging, production, demonstration)', true, null, true, 'target'),
+            new Option('list', 'List backups instead of restoring'),
+            new Option('timestamp', 'Backup timestamp (Ymd-His)', true, null, false, 'Ymd-His'),
         ];
     }
 

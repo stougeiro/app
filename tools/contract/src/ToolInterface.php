@@ -11,6 +11,8 @@ interface ToolInterface
 
     public function description(): string;
 
+    public function version(): string;
+
     /** @return array<string, CommandInterface> */
     public function commands(ContainerInterface $container): array;
 }

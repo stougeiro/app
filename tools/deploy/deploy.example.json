@@ -1,4 +1,8 @@
 {
+  "operator": {
+    "name": "Your Name",
+    "email": "you@example.com"
+  },
   "defaults": {
     "ssh": {
       "host": "example.com",
@@ -12,11 +16,20 @@
     "preserve": [
       "/.well-known/***"
     ],
-    "backup": {
-      "keep": 3
+    "keep": {
+      "backup": 3,
+      "release": 3,
+      "event": 30
     }
   },
   "targets": {
+    "demonstration": {
+      "root": {
+        "dir": "demo"
+      },
+      "webroot": "/home/deploy/domains/example.com/public_html/demo",
+      "url": "https://demo.example.com"
+    },
     "development": {
       "root": {
         "dir": "dev"
@@ -34,8 +47,9 @@
     "production": {
       "webroot": "/home/deploy/domains/example.com/public_html",
       "url": "https://example.com",
-      "backup": {
-        "keep": 5
+      "keep": {
+        "backup": 5,
+        "release": 5
       }
     }
   }

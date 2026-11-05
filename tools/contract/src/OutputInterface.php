@@ -16,7 +16,4 @@ interface OutputInterface
     public function error(string $text): void;
 
     public function separator(): void;
-
-    /** @param array<string, mixed> $data */
-    public function json(array $data): void;
 }

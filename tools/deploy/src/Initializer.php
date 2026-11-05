@@ -40,8 +40,14 @@ class Initializer
 
         $this->ensureDirectory($base);
         $this->ensureDirectory($base .'/ssh');
+        $this->ensureDirectory($base .'/stub');
+        $this->ensureDirectory($base .'/releases');
+        $this->ensureDirectory($base .'/targets');
 
-        foreach (Config::ENVIRONMENTS as $environment)
+        $this->ensureFile($base .'/stub/index.php', dirname(__DIR__) .'/resources/stub/index.php');
+        $this->ensureFile($base .'/stub/.htaccess', dirname(__DIR__) .'/resources/stub/.htaccess');
+
+        foreach (Config::TARGETS as $environment)
         {
             foreach (['application', 'public'] as $tree)
             {
@@ -66,10 +72,36 @@ class Initializer
 
         $this->out('');
         $this->out('next:');
-        $this->out('  edit deploy.json');
+        $this->out('  edit deploy.json and set operator.name');
         $this->out('  place SSH keys in .deploy/ssh/ or ~/.ssh/');
         $this->out('  add per-target overrides in .deploy/override/<target>/');
-        $this->out('  run: deploy check --target=staging');
+        $this->out('  customize the promoted-target redirect in .deploy/stub/');
+        $this->out('  run: ./sourcerer deploy check --target=staging');
+    }
+
+
+    private function ensureFile(string $path, string $template): void
+    {
+        if (is_link($path)) {
+            throw new RuntimeException("refusing to use symlink: {$path}");
+        }
+
+        if (is_file($path)) {
+            $this->out('exists '. $this->display($path));
+
+            return;
+        }
+
+        if (file_exists($path)) {
+            throw new RuntimeException("not a file: {$path}");
+        }
+
+        if ( ! is_file($template) || ! copy($template, $path)) {
+            throw new RuntimeException("could not create file from {$template}");
+        }
+
+        @chmod($path, 0600);
+        $this->out('created '. $this->display($path));
     }
 
 

@@ -7,12 +7,17 @@ use Tool\Contract\CommandInterface;
 use Tool\Contract\ToolInterface;
 use Tool\Deploy\Command\CheckCommand;
 use Tool\Deploy\Command\InitCommand;
+use Tool\Deploy\Command\PromoteCommand;
 use Tool\Deploy\Command\PushCommand;
+use Tool\Deploy\Command\ReleasesCommand;
 use Tool\Deploy\Command\RollbackCommand;
 
 
 final class DeployTool implements ToolInterface
 {
+    public const VERSION = '0.1.0';
+
+
     public function __construct(
         protected string $projectRoot = '',
     ) {
@@ -30,6 +35,11 @@ final class DeployTool implements ToolInterface
         return 'SSH deployment tool';
     }
 
+    public function version(): string
+    {
+        return self::VERSION;
+    }
+
     /** @return array<string, CommandInterface> */
     public function commands(ContainerInterface $container): array
     {
@@ -37,6 +47,8 @@ final class DeployTool implements ToolInterface
             'deploy init' => new InitCommand($this->projectRoot),
             'deploy check' => new CheckCommand($this->projectRoot),
             'deploy push' => new PushCommand($this->projectRoot),
+            'deploy promote' => new PromoteCommand($this->projectRoot),
+            'deploy releases' => new ReleasesCommand($this->projectRoot),
             'deploy rollback' => new RollbackCommand($this->projectRoot),
         ];
     }
