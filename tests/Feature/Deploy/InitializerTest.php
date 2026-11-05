@@ -1,6 +1,7 @@
 <?php declare(strict_types=1);
 
-use Deploy\Initializer;
+use Tests\Feature\Deploy\DeployFixtures;
+use Tool\Deploy\Initializer;
 
 
 function deployInitializerRoot(): string
@@ -17,7 +18,7 @@ function deployInitializerRoot(): string
 test('creates the local deploy directories and copies the example config', function () {
     $root = deployInitializerRoot();
 
-    (new Initializer($root))->run();
+    (new Initializer($root, DeployFixtures::output()))->run();
 
     expect(is_dir($root .'/.deploy/ssh'))->toBeTrue()
         ->and(is_dir($root .'/.deploy/override/development/public'))->toBeTrue()
@@ -32,7 +33,7 @@ test('does not overwrite an existing deploy config', function () {
     $root = deployInitializerRoot();
     file_put_contents($root .'/deploy.json', '{"custom":true}');
 
-    (new Initializer($root))->run();
+    (new Initializer($root, DeployFixtures::output()))->run();
 
     expect(file_get_contents($root .'/deploy.json'))->toBe('{"custom":true}');
 });
@@ -40,7 +41,7 @@ test('does not overwrite an existing deploy config', function () {
 
 test('is idempotent', function () {
     $root = deployInitializerRoot();
-    $initializer = new Initializer($root);
+    $initializer = new Initializer($root, DeployFixtures::output());
 
     $initializer->run();
     $initializer->run();
@@ -55,7 +56,7 @@ test('rejects .deploy when it is not a directory', function () {
     $root = deployInitializerRoot();
     file_put_contents($root .'/.deploy', 'not a directory');
 
-    expect(fn () => (new Initializer($root))->run())
+    expect(fn () => (new Initializer($root, DeployFixtures::output()))->run())
         ->toThrow(RuntimeException::class, 'not a directory');
 });
 
@@ -66,7 +67,7 @@ test('rejects a deploy config symlink', function () {
     file_put_contents($target, '{}');
     symlink($target, $root .'/deploy.json');
 
-    expect(fn () => (new Initializer($root))->run())
+    expect(fn () => (new Initializer($root, DeployFixtures::output()))->run())
         ->toThrow(RuntimeException::class, 'cannot be a symlink');
 });
 
@@ -75,7 +76,7 @@ test('rejects a deploy config that is not a regular file', function () {
     $root = deployInitializerRoot();
     mkdir($root .'/deploy.json');
 
-    expect(fn () => (new Initializer($root))->run())
+    expect(fn () => (new Initializer($root, DeployFixtures::output()))->run())
         ->toThrow(RuntimeException::class, 'not a regular file');
 });
 
@@ -86,7 +87,7 @@ test('rejects a symlinked deploy subdirectory', function () {
     mkdir($root .'/elsewhere', 0700);
     symlink($root .'/elsewhere', $root .'/.deploy/ssh');
 
-    expect(fn () => (new Initializer($root))->run())
+    expect(fn () => (new Initializer($root, DeployFixtures::output()))->run())
         ->toThrow(RuntimeException::class, 'refusing to use symlink');
 });
 
@@ -96,7 +97,7 @@ test('rejects a deploy subdirectory that is a file', function () {
     mkdir($root .'/.deploy', 0700);
     file_put_contents($root .'/.deploy/ssh', 'not a directory');
 
-    expect(fn () => (new Initializer($root))->run())
+    expect(fn () => (new Initializer($root, DeployFixtures::output()))->run())
         ->toThrow(RuntimeException::class, 'not a directory');
 });
 
@@ -105,6 +106,6 @@ test('fails when the example config is missing', function () {
     $root = sys_get_temp_dir() .'/deploy-init-'. bin2hex(random_bytes(6));
     mkdir($root, 0700, true);
 
-    expect(fn () => (new Initializer($root))->run())
+    expect(fn () => (new Initializer($root, DeployFixtures::output()))->run())
         ->toThrow(RuntimeException::class, 'example not found');
 });

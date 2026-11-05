@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-use Deploy\ShellResult;
+use Tool\Deploy\ShellResult;
 
 
 test('reports success and trimmed output', function () {

@@ -7,8 +7,12 @@ parameters:
         - application/database
         - application/provider
         - public
+        - tools/contract/src
         - tools/deploy/src
-        - tools/deploy/console.php
+        - tools/cli/src
+        - tools/cli/bootstrap.php
+        - tools/cli/console.php
+        - tools/cli/tools.php
     excludePaths:
         - application/module/*/View/*
     bootstrapFiles:

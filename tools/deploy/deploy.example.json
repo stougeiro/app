@@ -29,7 +29,7 @@
         "dir": "staging"
       },
       "webroot": "/home/deploy/domains/example.com/public_html/staging",
-      "url": "https://staging.example.com"
+      "url": "https://test.example.com"
     },
     "production": {
       "webroot": "/home/deploy/domains/example.com/public_html",

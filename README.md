@@ -84,8 +84,10 @@ composer install --no-dev --optimize-autoloader
 │   ├── database/     database-facing code
 │   ├── provider/     service providers
 │   └── storage/      cache, logs, sessions, uploads and temporary files
-├── deploy            deploy shim
-├── tools/deploy/     deploy tool source
+├── sourcerer         unified tool entrypoint
+├── tools/contract/    shared tool contracts
+├── tools/cli/         pluggable CLI runtime
+├── tools/deploy/      deploy tool source
 ├── deploy.json       local deploy configuration (not versioned)
 ├── .deploy/          local deploy state and secrets (not versioned)
 ├── public/           document root
@@ -189,14 +191,15 @@ Docker environment.
 
 ## 🚢 Deploy
 
-The repository includes an optional deploy CLI for repeatable SSH deployments.
-It keeps the application runtime independent from deployment concerns.
+The repository includes an optional deploy tool for repeatable SSH deployments.
+It runs through the unified `./sourcerer` entrypoint, requires Docker locally and
+keeps the application runtime independent from deployment concerns.
 
 ```bash
-./deploy init
-./deploy check --target=staging
-./deploy push --target=staging
-./deploy rollback --target=staging --list
+./sourcerer deploy init
+./sourcerer deploy check --target=staging
+./sourcerer deploy push --target=staging
+./sourcerer deploy rollback --target=staging --list
 ```
 
 Targets are declared in `deploy.json`, with separate `root` and `webroot` paths,

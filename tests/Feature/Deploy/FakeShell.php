@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Deploy;
 
-use Deploy\Shell;
-use Deploy\ShellResult;
 use RuntimeException;
+use Tool\Deploy\Shell;
+use Tool\Deploy\ShellResult;
 
 
 final class FakeShell extends Shell
@@ -16,9 +16,7 @@ final class FakeShell extends Shell
     private $handler;
 
 
-    /**
-     * @param callable(list<string>, ?string, ?string, ?array<string,string>): ShellResult $handler
-     */
+    /** @param callable(list<string>, ?string, ?string, ?array<string,string>): ShellResult $handler */
     public function __construct(callable $handler)
     {
         $this->handler = $handler;
@@ -36,8 +34,7 @@ final class FakeShell extends Shell
 
         $result = ($this->handler)($command, $stdin, $cwd, $env);
 
-        if ( ! $result instanceof ShellResult)
-        {
+        if ( ! $result instanceof ShellResult) {
             throw new RuntimeException('fake shell handler must return ShellResult');
         }
 
@@ -49,8 +46,7 @@ final class FakeShell extends Shell
     {
         $result = $this->run($command, $stdin, $cwd, $env);
 
-        if ( ! $result->ok())
-        {
+        if ( ! $result->ok()) {
             $detail = trim($result->stderr) !== '' ? trim($result->stderr) : trim($result->stdout);
 
             throw new RuntimeException(

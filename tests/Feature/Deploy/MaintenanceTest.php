@@ -1,8 +1,8 @@
 <?php declare(strict_types=1);
 
-use Deploy\Maintenance;
-use Deploy\ShellResult;
-use Deploy\Ssh;
+use Tool\Deploy\Maintenance;
+use Tool\Deploy\ShellResult;
+use Tool\Deploy\Ssh;
 use Tests\Feature\Deploy\DeployFixtures;
 use Tests\Feature\Deploy\FakeShell;
 

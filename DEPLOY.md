@@ -10,9 +10,13 @@ runtime and must never be uploaded to the server. A deployment copies only
 ## Layout
 
 ```text
-./deploy                     executable shim
-tools/deploy/                tool source, console, Dockerfile and example
+./sourcerer                  unified tool entrypoint
+tools/contract/              shared tool contracts
+tools/cli/                   pluggable CLI runtime
+tools/deploy/                deploy tool and example
+tools/cli/Dockerfile         tool runtime image
 tools/deploy/src/            deploy classes
+tools/deploy/src/Command/    deploy commands
 tools/deploy/deploy.example.json
 deploy.json                  local configuration (not versioned)
 .deploy/                     local state and secrets (not versioned)
@@ -26,23 +30,21 @@ usually points to `public_html/` or another document root.
 
 ## Requirements
 
-The default command uses Docker. The deploy image is built on demand from
-`tools/deploy/Dockerfile` and contains PHP, Composer, rsync, OpenSSH, scp,
+Docker is the only local requirement. The tool image is built on demand from
+`tools/cli/Dockerfile` and contains PHP 8.2, Composer, rsync, OpenSSH, scp,
 curl and tar.
 
-To run without Docker, use `--local` or set `DEPLOY_LOCAL=1`:
+The image is tagged `stougeiro/sourcerer:local`. If the Dockerfile changes,
+rebuild it explicitly:
 
 ```bash
-./deploy --local help
-DEPLOY_LOCAL=1 ./deploy help
+docker build -t stougeiro/sourcerer:local tools/cli
 ```
-
-Local mode requires PHP 8.2+, Composer, rsync, ssh, scp, curl and tar.
 
 ## Quick start
 
 ```bash
-./deploy init
+./sourcerer deploy init
 ```
 
 Then:
@@ -53,13 +55,13 @@ Then:
 4. validate the connection:
 
 ```bash
-./deploy check --target=staging
+./sourcerer deploy check --target=staging
 ```
 
 Deploy:
 
 ```bash
-./deploy push --target=staging
+./sourcerer deploy push --target=staging
 ```
 
 ## Targets
@@ -222,11 +224,11 @@ restored by `rollback`.
 
 | Command | Purpose |
 |---|---|
-| `./deploy init` | Creates `.deploy/` directories and copies the example to `deploy.json` |
-| `./deploy check --target=<name>` | Verifies SSH, writable paths, storage and transport |
-| `./deploy push --target=<name>` | Builds vendor, backs up, transfers, verifies and prunes backups |
-| `./deploy rollback --target=<name> --list` | Lists backups for the target |
-| `./deploy rollback --target=<name> [--timestamp=<Ymd-His>]` | Restores a backup; latest when omitted |
+| `./sourcerer deploy init` | Creates `.deploy/` directories and copies the example to `deploy.json` |
+| `./sourcerer deploy check --target=<name>` | Verifies SSH, writable paths, storage and transport |
+| `./sourcerer deploy push --target=<name>` | Builds vendor, backs up, transfers, verifies and prunes backups |
+| `./sourcerer deploy rollback --target=<name> --list` | Lists backups for the target |
+| `./sourcerer deploy rollback --target=<name> [--timestamp=<Ymd-His>]` | Restores a backup; latest when omitted |
 
 `init` does not accept `--target`. `--list` and `--timestamp` are only valid for
 `rollback` and cannot be used together.

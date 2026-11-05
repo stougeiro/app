@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-use Deploy\Config;
+use Tool\Deploy\Config;
 
 
 /**

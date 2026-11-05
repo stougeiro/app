@@ -53,12 +53,15 @@
         "stougeiro/cache": "^2.0",
         "stougeiro/session": "^2.0",
         "stougeiro/event": "^1.0",
-        "stougeiro/pdo-database": "^1.0"
+        "stougeiro/pdo-database": "^1.0",
+        "stougeiro/support": "^2.0"
     },
     "autoload-dev": {
         "psr-4": {
             "Tests\\": "tests/",
-            "Deploy\\": "tools/deploy/src/"
+            "Tool\\Contract\\": "tools/contract/src/",
+            "Tool\\Cli\\": "tools/cli/src/",
+            "Tool\\Deploy\\": "tools/deploy/src/"
         }
     },
     "require-dev": {

@@ -2,7 +2,10 @@
 
 namespace Tests\Feature\Deploy;
 
-use Deploy\Target;
+use RuntimeException;
+use Tool\Cli\Output;
+use Tool\Deploy\ShellResult;
+use Tool\Deploy\Target;
 
 
 final class DeployFixtures
@@ -35,5 +38,155 @@ final class DeployFixtures
             $backupKeep,
             $nestedWebroots,
         );
+    }
+
+
+    public static function output(mixed $stream = null): Output
+    {
+        if ($stream === null) {
+            $stream = fopen('php://memory', 'w+');
+        }
+
+        if ( ! is_resource($stream)) {
+            throw new RuntimeException('could not open output stream');
+        }
+
+        return new Output($stream);
+    }
+
+
+    public static function workspace(): string
+    {
+        $root = sys_get_temp_dir() .'/deploy-'. bin2hex(random_bytes(6));
+
+        foreach ([
+            'application/Config',
+            'public/assets',
+            '.deploy/override/staging/application',
+            '.deploy/override/staging/public',
+        ] as $directory) {
+            mkdir($root .'/'. $directory, 0700, true);
+        }
+
+        file_put_contents($root .'/composer.json', '{}');
+        file_put_contents($root .'/composer.lock', '{}');
+        file_put_contents($root .'/application/Config/app.php', '<?php return [];');
+        file_put_contents($root .'/public/index.php', '<?php');
+        file_put_contents($root .'/public/assets/app.css', 'body{}');
+        file_put_contents($root .'/.deploy/override/staging/public/.htaccess', 'Options -Indexes');
+        file_put_contents($root .'/.deploy/override/staging/application/env.json', '{"environment":"staging"}');
+
+        return $root;
+    }
+
+
+    public static function shell(
+        bool $failWebrootRsync = false,
+        string $snapshotList = '',
+        bool $hasRsync = true,
+        string $rootStatus = '200',
+        string $missingStatus = '404',
+        string $rootBody = '',
+        ?string $manifest = null,
+        bool $failComposer = false,
+        bool $composerNoVendor = false,
+        bool $remoteEnv = false,
+    ): FakeShell {
+        return new FakeShell(function (array $command, ?string $stdin = null, ?string $cwd = null) use (
+            $failWebrootRsync,
+            $snapshotList,
+            $hasRsync,
+            $rootStatus,
+            $missingStatus,
+            $rootBody,
+            $manifest,
+            $failComposer,
+            $composerNoVendor,
+            $remoteEnv,
+        ): ShellResult {
+            $binary = $command[0];
+            $remote = $command[count($command) - 1];
+
+            if ($binary === 'ssh') {
+                if (str_contains($remote, 'application/env.json')) {
+                    return new ShellResult(0, $remoteEnv ? 'yes' : 'no', '');
+                }
+
+                if (str_contains($remote, 'command -v rsync')) {
+                    return new ShellResult(0, $hasRsync ? 'yes' : 'no', '');
+                }
+
+                if (str_contains($remote, 'ls -1dt')) {
+                    return new ShellResult(0, $snapshotList, '');
+                }
+
+                if (str_contains($remote, 'manifest.json')) {
+                    if ($manifest !== null) {
+                        return new ShellResult(0, $manifest, '');
+                    }
+
+                    return new ShellResult(0, json_encode([
+                        'target' => 'staging',
+                        'root' => '/srv/app',
+                        'webroot' => '/srv/app/public_html',
+                    ], JSON_THROW_ON_ERROR), '');
+                }
+
+                return new ShellResult(0, '', '');
+            }
+
+            if ($binary === 'composer') {
+                if ($cwd === null) {
+                    return new ShellResult(1, '', 'missing cwd');
+                }
+
+                if ($failComposer) {
+                    return new ShellResult(1, '', 'composer boom');
+                }
+
+                if ($composerNoVendor) {
+                    return new ShellResult(0, '', '');
+                }
+
+                mkdir($cwd .'/vendor/composer', 0700, true);
+                file_put_contents($cwd .'/vendor/autoload.php', '<?php');
+
+                return new ShellResult(0, '', '');
+            }
+
+            if ($binary === 'rsync') {
+                $joined = implode(' ', $command);
+
+                if ($failWebrootRsync
+                    && str_contains($joined, '/public_html/')
+                    && ! str_contains($joined, '/override/')) {
+                    return new ShellResult(1, '', 'rsync boom');
+                }
+
+                return new ShellResult(0, '', '');
+            }
+
+            if ($binary === 'curl') {
+                $url = $command[count($command) - 1];
+                $status = str_ends_with($url, '/missing') ? $missingStatus : $rootStatus;
+
+                if (in_array('-o', $command, true)) {
+                    return new ShellResult(0, $status, '');
+                }
+
+                return new ShellResult(0, $rootBody, '');
+            }
+
+            return new ShellResult(0, '', '');
+        });
+    }
+
+
+    public static function calls(FakeShell $shell): string
+    {
+        return implode("\n", array_map(
+            static fn (array $call): string => implode(' ', $call['command']),
+            $shell->calls,
+        ));
     }
 }

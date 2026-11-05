@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace Deploy;
+namespace Tool\Deploy;
 
 use FilesystemIterator;
 use JsonException;
@@ -9,6 +9,7 @@ use RecursiveIteratorIterator;
 use RuntimeException;
 use SplFileInfo;
 use Throwable;
+use Tool\Contract\OutputInterface;
 
 
 class Deployer
@@ -28,6 +29,7 @@ class Deployer
         private readonly string $projectRoot,
         private readonly Target $target,
         private readonly Shell $shell,
+        private readonly OutputInterface $output,
     ) {
         $this->ssh = new Ssh($shell);
         $this->maintenance = new Maintenance($this->ssh);
@@ -277,7 +279,7 @@ class Deployer
 
     protected function out(string $message): void
     {
-        fwrite(STDOUT, '['. $this->target->name .'] '. $message .PHP_EOL);
+        $this->output->line('['. $this->target->name .'] '. $message);
     }
 
 

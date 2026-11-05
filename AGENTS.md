@@ -13,11 +13,14 @@ Read `ARCHITECTURE.md` before changing code.
 - Keep service wiring in `application/provider`.
 - Keep global policy in `application/config`.
 - Keep only the entrypoint and public assets in `public`.
-- Keep the deploy shim at `./deploy` and deploy source in `tools/deploy`.
+- Keep shared tool contracts in `tools/contract`.
+- Keep the pluggable tool runtime in `tools/cli`.
+- Keep tool source in `tools/<tool>` and register tools in `tools/cli/tools.php`.
+- Use `./sourcerer` as the single tool entrypoint.
 - Read `DEPLOY.md` before changing deployment behavior.
 - Treat `application/*` and `public/*` as the normal application change scope.
-- Treat `./deploy` and `tools/deploy` as out of scope. Use them only when
-  explicitly requested; do not modify them without explicit permission.
+- Keep tools independent from the application runtime; the application must
+  never require `tools/`.
 
 ## Where to put code
 
@@ -37,8 +40,10 @@ Read `ARCHITECTURE.md` before changing code.
 | Public CSS/assets | `public/assets` |
 | Configuration | `application/config` |
 | Tests | `tests` |
-| Deploy CLI source | `tools/deploy` |
-| Deploy shim | `./deploy` |
+| Shared tool contracts | `tools/contract` |
+| CLI runtime | `tools/cli` |
+| Deploy tool source | `tools/deploy` |
+| Tool entrypoint | `./sourcerer` |
 | Deploy config/state | `deploy.json`, `.deploy` (local only) |
 
 ## Module rules
@@ -98,9 +103,7 @@ Read `ARCHITECTURE.md` before changing code.
 
 - Read `DEPLOY.md` before using or configuring the deploy tool.
 - The normal change scope is `application/*` and `public/*`.
-- `./deploy` and `tools/deploy` are consumer tooling. Do not modify them unless
-  the task explicitly requests it and the user grants permission.
-- Keep the executable shim at `./deploy` and the source in `tools/deploy`.
+- Deploy source lives in `tools/deploy` and runs through `./sourcerer deploy`.
 - The deploy tool is repository tooling. Do not require it from `application/`,
   providers or modules.
 - Do not upload `tools/deploy/` to the server. A deploy transfers only
@@ -108,7 +111,8 @@ Read `ARCHITECTURE.md` before changing code.
 - Do not commit `deploy.json`, `.deploy/`, environment files or SSH keys.
 - Keep deploy behavior covered by `tests/Feature/Deploy` and entrypoint behavior
   covered by `tests/Feature/EntrypointTest.php`.
-- Use `./deploy help` or `./deploy --local help` to validate the shim.
+- Use `./sourcerer deploy --help` to validate the CLI.
+- Docker is the only local runtime requirement for `./sourcerer`.
 
 ## Dependencies
 
@@ -155,7 +159,7 @@ Docker-only paths or Apache vhost edits.
 - Treat Docker as a production requirement.
 - Commit deploy secrets, environment values or SSH keys.
 - Put deploy source under `public` or require it from the runtime.
-- Modify `./deploy` or `tools/deploy` without explicit permission.
+- Make `application/` depend on `tools/`.
 - Add abstractions without a real second use case.
 - Suppress errors or logs without an explicit operational reason.
 - Edit the `base` or `base-contract` repositories from this app unless the task

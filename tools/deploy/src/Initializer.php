@@ -1,14 +1,16 @@
 <?php declare(strict_types=1);
 
-namespace Deploy;
+namespace Tool\Deploy;
 
 use RuntimeException;
+use Tool\Contract\OutputInterface;
 
 
 class Initializer
 {
     public function __construct(
         private readonly string $projectRoot,
+        private readonly OutputInterface $output,
     ) {
     }
 
@@ -115,6 +117,6 @@ class Initializer
 
     private function out(string $message): void
     {
-        fwrite(STDOUT, $message . PHP_EOL);
+        $this->output->line($message);
     }
 }

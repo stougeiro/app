@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
-use Deploy\Deployer;
-use Deploy\ShellResult;
+use Tool\Deploy\Deployer;
+use Tool\Deploy\ShellResult;
 use Tests\Feature\Deploy\DeployFixtures;
 use Tests\Feature\Deploy\FakeShell;
 
@@ -160,7 +160,7 @@ function deployDeployerCalls(FakeShell $shell): string
 test('check accepts a reachable target without probing php cli', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell();
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     $deployer->check();
 
@@ -177,7 +177,7 @@ test('check creates only the configured root dir when missing', function () {
         rootBase: '/srv/app',
         rootDir: 'development',
     );
-    $deployer = new Deployer($root, $target, $shell);
+    $deployer = deployTestDeployer($root, $target, $shell);
 
     $deployer->check();
 
@@ -190,7 +190,7 @@ test('check creates only the configured root dir when missing', function () {
 test('check does not create a root when dir is omitted', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell();
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     $deployer->check();
 
@@ -202,7 +202,7 @@ test('push aborts when there is no local or remote env', function () {
     $root = deployDeployerWorkspace();
     unlink($root .'/.deploy/override/staging/application/env.json');
     $shell = deployDeployerShell();
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     expect(fn () => $deployer->push())
         ->toThrow(RuntimeException::class, 'missing env');
@@ -215,7 +215,7 @@ test('push accepts a remote env when the local override is missing', function ()
     $root = deployDeployerWorkspace();
     unlink($root .'/.deploy/override/staging/application/env.json');
     $shell = deployDeployerShell(remoteEnv: true);
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     $deployer->push();
 
@@ -226,7 +226,7 @@ test('push accepts a remote env when the local override is missing', function ()
 test('push creates a backup, transfers the build and applies overrides', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell();
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     $deployer->push();
 
@@ -246,7 +246,7 @@ test('push creates a backup, transfers the build and applies overrides', functio
 test('push restores the backup when the transfer fails', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell(failWebrootRsync: true);
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     expect(fn () => $deployer->push())
         ->toThrow(RuntimeException::class, 'rsync boom');
@@ -261,7 +261,7 @@ test('push restores the backup when the transfer fails', function () {
 test('push fails when the root url does not return 200', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell(rootStatus: '500');
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     expect(fn () => $deployer->push())
         ->toThrow(RuntimeException::class, 'returned 500');
@@ -273,7 +273,7 @@ test('push fails when the root url does not return 200', function () {
 test('push fails when the response contains a fatal error', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell(rootBody: 'Fatal error: boom');
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     expect(fn () => $deployer->push())
         ->toThrow(RuntimeException::class, 'fatal error');
@@ -283,7 +283,7 @@ test('push fails when the response contains a fatal error', function () {
 test('push fails when the missing url does not return 404', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell(missingStatus: '200');
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     expect(fn () => $deployer->push())
         ->toThrow(RuntimeException::class, 'did not return 404');
@@ -293,7 +293,7 @@ test('push fails when the missing url does not return 404', function () {
 test('push fails when composer cannot build the vendor directory', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell(failComposer: true);
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     expect(fn () => $deployer->push())
         ->toThrow(RuntimeException::class, 'composer failed');
@@ -303,7 +303,7 @@ test('push fails when composer cannot build the vendor directory', function () {
 test('push fails when composer does not create the vendor directory', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell(composerNoVendor: true);
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     expect(fn () => $deployer->push())
         ->toThrow(RuntimeException::class, 'did not generate the vendor directory');
@@ -313,7 +313,7 @@ test('push fails when composer does not create the vendor directory', function (
 test('push falls back to tar and applies tar overrides', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell(hasRsync: false);
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     $deployer->push();
 
@@ -330,7 +330,7 @@ test('push excludes nested target webroots', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell();
     $target = DeployFixtures::target(nestedWebroots: ['dev']);
-    $deployer = new Deployer($root, $target, $shell);
+    $deployer = deployTestDeployer($root, $target, $shell);
 
     $deployer->push();
 
@@ -343,7 +343,7 @@ test('push excludes nested target webroots', function () {
 test('backups lists remote snapshots', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240102-000000/\n/srv/app/.deploy/backups/staging/20240101-000000/\n");
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     expect($deployer->backups())->toBe(['20240102-000000', '20240101-000000']);
 });
@@ -351,7 +351,7 @@ test('backups lists remote snapshots', function () {
 
 test('rollback fails without backups', function () {
     $root = deployDeployerWorkspace();
-    $deployer = new Deployer($root, DeployFixtures::target(), deployDeployerShell());
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), deployDeployerShell());
 
     expect(fn () => $deployer->rollback(null))
         ->toThrow(RuntimeException::class, 'no backup found');
@@ -360,7 +360,7 @@ test('rollback fails without backups', function () {
 
 test('rollback rejects an invalid timestamp', function () {
     $root = deployDeployerWorkspace();
-    $deployer = new Deployer(
+    $deployer = deployTestDeployer(
         $root,
         DeployFixtures::target(),
         deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n"),
@@ -373,7 +373,7 @@ test('rollback rejects an invalid timestamp', function () {
 
 test('rollback rejects an unknown timestamp', function () {
     $root = deployDeployerWorkspace();
-    $deployer = new Deployer(
+    $deployer = deployTestDeployer(
         $root,
         DeployFixtures::target(),
         deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n"),
@@ -387,7 +387,7 @@ test('rollback rejects an unknown timestamp', function () {
 test('rollback restores the latest backup by default', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n");
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     $deployer->rollback(null);
 
@@ -402,7 +402,7 @@ test('rollback restores the latest backup by default', function () {
 test('rollback restores a specific timestamp', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240102-000000/\n/srv/app/.deploy/backups/staging/20240101-000000/\n");
-    $deployer = new Deployer($root, DeployFixtures::target(), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
     $deployer->rollback('20240101-000000');
 
@@ -413,7 +413,7 @@ test('rollback restores a specific timestamp', function () {
 test('rollback preserves nested target webroots', function () {
     $root = deployDeployerWorkspace();
     $shell = deployDeployerShell(snapshotList: "/srv/app/.deploy/backups/staging/20240101-000000/\n");
-    $deployer = new Deployer($root, DeployFixtures::target(nestedWebroots: ['dev']), $shell);
+    $deployer = deployTestDeployer($root, DeployFixtures::target(nestedWebroots: ['dev']), $shell);
 
     $deployer->rollback(null);
 
@@ -423,7 +423,7 @@ test('rollback preserves nested target webroots', function () {
 
 test('rollback rejects a backup without a manifest', function () {
     $root = deployDeployerWorkspace();
-    $deployer = new Deployer(
+    $deployer = deployTestDeployer(
         $root,
         DeployFixtures::target(),
         deployDeployerShell(
@@ -439,7 +439,7 @@ test('rollback rejects a backup without a manifest', function () {
 
 test('rollback rejects an invalid manifest', function () {
     $root = deployDeployerWorkspace();
-    $deployer = new Deployer(
+    $deployer = deployTestDeployer(
         $root,
         DeployFixtures::target(),
         deployDeployerShell(
@@ -455,7 +455,7 @@ test('rollback rejects an invalid manifest', function () {
 
 test('rollback rejects a manifest that is not an object', function () {
     $root = deployDeployerWorkspace();
-    $deployer = new Deployer(
+    $deployer = deployTestDeployer(
         $root,
         DeployFixtures::target(),
         deployDeployerShell(
@@ -471,7 +471,7 @@ test('rollback rejects a manifest that is not an object', function () {
 
 test('rollback rejects a backup for another layout', function () {
     $root = deployDeployerWorkspace();
-    $deployer = new Deployer(
+    $deployer = deployTestDeployer(
         $root,
         DeployFixtures::target(),
         deployDeployerShell(
@@ -487,3 +487,9 @@ test('rollback rejects a backup for another layout', function () {
     expect(fn () => $deployer->rollback(null))
         ->toThrow(RuntimeException::class, 'layout does not match');
 });
+
+
+function deployTestDeployer(string $root, \Tool\Deploy\Target $target, \Tool\Deploy\Shell $shell): Deployer
+{
+    return new \Tool\Deploy\Deployer($root, $target, $shell, DeployFixtures::output());
+}

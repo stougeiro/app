@@ -2,37 +2,19 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE="stougeiro/deploy:local"
-LOCAL=0
-ARGS=()
-
-for ARG in "$@"; do
-    if [ "$ARG" = "--local" ]; then
-        LOCAL=1
-    else
-        ARGS+=("$ARG")
-    fi
-done
-
-if [ "${DEPLOY_LOCAL:-0}" = "1" ]; then
-    LOCAL=1
-fi
-
-if [ "$LOCAL" = "1" ]; then
-    exec php "$ROOT/tools/deploy/console.php" "${ARGS[@]}"
-fi
+IMAGE="stougeiro/sourcerer:local"
 
 if ! command -v docker >/dev/null 2>&1; then
-    echo "error: docker not found; use --local with PHP/Composer/rsync/ssh installed" >&2
+    echo "error: docker is required" >&2
     exit 1
 fi
 
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
     echo "building image $IMAGE..." >&2
-    docker build -q -t "$IMAGE" "$ROOT/tools/deploy" >/dev/null
+    docker build -q -t "$IMAGE" "$ROOT/tools/cli" >/dev/null
 fi
 
-DOCKER_ARGS=(run --rm -i)
+DOCKER_ARGS=(run --rm -i --add-host=host.docker.internal:host-gateway)
 if [ -t 0 ] && [ -t 1 ]; then
     DOCKER_ARGS+=(-t)
 fi
@@ -46,17 +28,17 @@ DOCKER_ARGS+=(
 )
 
 if [ "$(id -u)" != "0" ]; then
-    DEPLOY_PASSWD="$(mktemp)"
-    trap 'rm -f "$DEPLOY_PASSWD"' EXIT
-    chmod 0644 "$DEPLOY_PASSWD"
+    PASSWD_FILE="$(mktemp)"
+    trap 'rm -f "$PASSWD_FILE"' EXIT
+    chmod 0644 "$PASSWD_FILE"
 
     {
         printf 'root:x:0:0:root:/root:/bin/sh\n'
         printf '%s:x:%s:%s:%s:/tmp:/bin/sh\n' \
             "$(id -un)" "$(id -u)" "$(id -g)" "$(id -un)"
-    } > "$DEPLOY_PASSWD"
+    } > "$PASSWD_FILE"
 
-    DOCKER_ARGS+=(-v "$DEPLOY_PASSWD:/etc/passwd:ro")
+    DOCKER_ARGS+=(-v "$PASSWD_FILE:/etc/passwd:ro")
 fi
 
 if [ -d "${HOME}/.ssh" ]; then
@@ -67,4 +49,4 @@ if [ -d "${HOME}/.cache/composer" ]; then
     DOCKER_ARGS+=(-v "${HOME}/.cache/composer:/tmp/.cache/composer")
 fi
 
-docker "${DOCKER_ARGS[@]}" "$IMAGE" php /work/tools/deploy/console.php "${ARGS[@]}"
+docker "${DOCKER_ARGS[@]}" "$IMAGE" php /work/tools/cli/console.php "$@"
