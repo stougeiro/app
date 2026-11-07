@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-use Tool\Deploy\Shell;
+use Sourcerer\Tool\Code\Shell;
 
 
 test('runs a command and captures stdout, stderr and exit code', function () {

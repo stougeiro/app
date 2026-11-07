@@ -1,10 +1,10 @@
 <?php declare(strict_types=1);
 
-use Tool\Deploy\Maintenance;
-use Tool\Deploy\ShellResult;
-use Tool\Deploy\Ssh;
-use Tests\Feature\Deploy\DeployFixtures;
-use Tests\Feature\Deploy\FakeShell;
+use Sourcerer\Tool\Code\Maintenance;
+use Sourcerer\Tool\Code\ShellResult;
+use Sourcerer\Tool\Code\Ssh;
+use Tests\Feature\Code\DeployFixtures;
+use Tests\Feature\Code\FakeShell;
 
 
 function deployMaintenanceShell(): FakeShell

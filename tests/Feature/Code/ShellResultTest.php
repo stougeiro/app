@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-use Tool\Deploy\ShellResult;
+use Sourcerer\Tool\Code\ShellResult;
 
 
 test('reports success and trimmed output', function () {

@@ -1,9 +1,9 @@
 <?php declare(strict_types=1);
 
-use Tests\Feature\Deploy\DeployFixtures;
-use Tests\Feature\Deploy\FakeShell;
-use Tool\Deploy\Requirements\ComposerRequirements;
-use Tool\Deploy\Requirements\WebProbe;
+use Tests\Feature\Code\DeployFixtures;
+use Tests\Feature\Code\FakeShell;
+use Sourcerer\Tool\Code\Requirements\ComposerRequirements;
+use Sourcerer\Tool\Code\Requirements\WebProbe;
 
 
 test('reads php and extension requirements from composer.json', function () {
@@ -36,17 +36,17 @@ test('reads php and extension requirements from composer.json', function () {
 
 
 test('web probe validates php and extensions and removes the probe', function () {
-    $shell = new FakeShell(function (array $command, ?string $stdin = null): \Tool\Deploy\ShellResult {
+    $shell = new FakeShell(function (array $command, ?string $stdin = null): \Sourcerer\Tool\Code\ShellResult {
         $last = (string) $command[count($command) - 1];
 
         if (str_contains($last, '_sr-check') && $command[0] === 'curl') {
-            return new \Tool\Deploy\ShellResult(0, json_encode([
+            return new \Sourcerer\Tool\Code\ShellResult(0, json_encode([
                 'php' => '8.2.20',
                 'extensions' => ['pdo', 'pdo_sqlite'],
             ], JSON_THROW_ON_ERROR), '');
         }
 
-        return new \Tool\Deploy\ShellResult(0, '', '');
+        return new \Sourcerer\Tool\Code\ShellResult(0, '', '');
     });
 
     $probe = (new WebProbe())->inspect(DeployFixtures::target(), $shell);

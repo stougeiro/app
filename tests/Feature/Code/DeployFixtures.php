@@ -1,12 +1,12 @@
 <?php declare(strict_types=1);
 
-namespace Tests\Feature\Deploy;
+namespace Tests\Feature\Code;
 
 use RuntimeException;
-use Tool\Cli\Output;
-use Tool\Deploy\ShellResult;
-use Tool\Deploy\Operator\Operator;
-use Tool\Deploy\Target;
+use Sourcerer\Tool\Manager\Output;
+use Sourcerer\Tool\Code\ShellResult;
+use Sourcerer\Tool\Code\Operator\Operator;
+use Sourcerer\Tool\Code\Target;
 
 
 final class DeployFixtures

@@ -1,10 +1,10 @@
 <?php declare(strict_types=1);
 
-namespace Tests\Feature\Deploy;
+namespace Tests\Feature\Code;
 
 use RuntimeException;
-use Tool\Deploy\Shell;
-use Tool\Deploy\ShellResult;
+use Sourcerer\Tool\Code\Shell;
+use Sourcerer\Tool\Code\ShellResult;
 
 
 final class FakeShell extends Shell

@@ -1,47 +1,47 @@
 <?php declare(strict_types=1);
 
-use Tests\Feature\Deploy\DeployFixtures;
-use Tests\Feature\Deploy\FakeShell;
-use Tool\Deploy\Lock\TargetLock;
+use Tests\Feature\Code\DeployFixtures;
+use Tests\Feature\Code\FakeShell;
+use Sourcerer\Tool\Code\Lock\TargetLock;
 
 
 function deployLockShell(array &$state): FakeShell
 {
-    return new FakeShell(function (array $command, ?string $stdin = null) use (&$state): \Tool\Deploy\ShellResult {
+    return new FakeShell(function (array $command, ?string $stdin = null) use (&$state): \Sourcerer\Tool\Code\ShellResult {
         $remote = (string) $command[count($command) - 1];
 
         if (str_contains($remote, 'date +%s')) {
-            return new \Tool\Deploy\ShellResult(0, (string) time(), '');
+            return new \Sourcerer\Tool\Code\ShellResult(0, (string) time(), '');
         }
 
         if (str_contains($remote, 'mkdir ') && str_contains($remote, 'lock')) {
             if ($state['locked']) {
-                return new \Tool\Deploy\ShellResult(0, '__EXISTS__', '');
+                return new \Sourcerer\Tool\Code\ShellResult(0, '__EXISTS__', '');
             }
 
             $state['locked'] = true;
 
-            return new \Tool\Deploy\ShellResult(0, '__LOCKED__', '');
+            return new \Sourcerer\Tool\Code\ShellResult(0, '__LOCKED__', '');
         }
 
         if (str_contains($remote, 'cat ') && str_contains($remote, 'owner.json')) {
-            return new \Tool\Deploy\ShellResult(0, (string) ($state['owner'] ?? ''), '');
+            return new \Sourcerer\Tool\Code\ShellResult(0, (string) ($state['owner'] ?? ''), '');
         }
 
         if (str_contains($remote, 'cat > ') && str_contains($remote, 'owner.json')) {
             $state['owner'] = (string) $stdin;
 
-            return new \Tool\Deploy\ShellResult(0, '', '');
+            return new \Sourcerer\Tool\Code\ShellResult(0, '', '');
         }
 
         if (str_contains($remote, 'rm -rf ') && str_contains($remote, 'lock')) {
             $state['locked'] = false;
             $state['owner'] = null;
 
-            return new \Tool\Deploy\ShellResult(0, '', '');
+            return new \Sourcerer\Tool\Code\ShellResult(0, '', '');
         }
 
-        return new \Tool\Deploy\ShellResult(0, '', '');
+        return new \Sourcerer\Tool\Code\ShellResult(0, '', '');
     });
 }
 

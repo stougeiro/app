@@ -1,15 +1,15 @@
 <?php declare(strict_types=1);
 
-use Tests\Feature\Deploy\DeployFixtures;
+use Tests\Feature\Code\DeployFixtures;
 use Tests\Feature\Cli\CliFixtures;
-use Tests\Feature\Deploy\FakeShell;
-use Tool\Cli\Input;
-use Tool\Contract\CommandInterface;
-use Tool\Contract\ExitCode;
-use Tool\Deploy\Command\CheckCommand;
-use Tool\Deploy\Command\InitCommand;
-use Tool\Deploy\Command\PushCommand;
-use Tool\Deploy\Command\RollbackCommand;
+use Tests\Feature\Code\FakeShell;
+use Sourcerer\Tool\Manager\Input;
+use Sourcerer\Tool\Contract\CommandInterface;
+use Sourcerer\Tool\Contract\ExitCode;
+use Sourcerer\Tool\Code\Command\CheckCommand;
+use Sourcerer\Tool\Code\Command\InitCommand;
+use Sourcerer\Tool\Code\Command\PushCommand;
+use Sourcerer\Tool\Code\Command\RollbackCommand;
 
 
 function deployCommandInput(CommandInterface $command, array $tokens): Input
@@ -44,8 +44,7 @@ function deployCommandRead(mixed $stream): string
 
 test('init command creates the deploy layout', function () {
     $root = sys_get_temp_dir() .'/deploy-command-init-'. bin2hex(random_bytes(6));
-    mkdir($root .'/tools/deploy', 0700, true);
-    file_put_contents($root .'/tools/deploy/deploy.example.json', '{"targets":{}}');
+    mkdir($root, 0700, true);
 
     $command = new InitCommand($root);
 
@@ -122,16 +121,16 @@ test('rollback command rejects list together with timestamp', function () {
 });
 
 
-test('deploy tool registers its commands', function () {
-    $tool = new Tool\Deploy\DeployTool();
+test('code tool registers its commands', function () {
+    $tool = new Sourcerer\Tool\Code\CodeTool();
 
-    expect(array_keys($tool->commands(new STDW\Container\Container())))->toBe([
-        'deploy init',
-        'deploy check',
-        'deploy push',
-        'deploy promote',
-        'deploy releases',
-        'deploy rollback',
+    expect(array_keys($tool->commands(sys_get_temp_dir())))->toBe([
+        'code init',
+        'code check',
+        'code push',
+        'code promote',
+        'code releases',
+        'code rollback',
     ]);
 });
 
@@ -170,35 +169,35 @@ function deployPromoteWorkspace(): string
 
 function deployPromoteShell(string $currentJson, string $manifestJson): FakeShell
 {
-    return new FakeShell(function (array $command) use ($currentJson, $manifestJson): \Tool\Deploy\ShellResult {
+    return new FakeShell(function (array $command) use ($currentJson, $manifestJson): \Sourcerer\Tool\Code\ShellResult {
         $binary = $command[0];
         $last = (string) $command[count($command) - 1];
 
         if ($binary === 'ssh') {
             if (str_contains($last, '/srv/dev/app/.deploy/current.json')) {
-                return new \Tool\Deploy\ShellResult(0, $currentJson, '');
+                return new \Sourcerer\Tool\Code\ShellResult(0, $currentJson, '');
             }
 
             if (str_contains($last, '/srv/staging/app/.deploy/current.json')) {
-                return new \Tool\Deploy\ShellResult(0, '__MISSING__', '');
+                return new \Sourcerer\Tool\Code\ShellResult(0, '__MISSING__', '');
             }
 
             if (str_contains($last, 'application/env.json')) {
-                return new \Tool\Deploy\ShellResult(0, 'yes', '');
+                return new \Sourcerer\Tool\Code\ShellResult(0, 'yes', '');
             }
 
             if (str_contains($last, 'command -v rsync')) {
-                return new \Tool\Deploy\ShellResult(0, 'yes', '');
+                return new \Sourcerer\Tool\Code\ShellResult(0, 'yes', '');
             }
 
-            return new \Tool\Deploy\ShellResult(0, '', '');
+            return new \Sourcerer\Tool\Code\ShellResult(0, '', '');
         }
 
         if ($binary === 'scp') {
             $local = (string) $command[count($command) - 1];
 
             if (str_contains($local, ':')) {
-                return new \Tool\Deploy\ShellResult(0, '', '');
+                return new \Sourcerer\Tool\Code\ShellResult(0, '', '');
             }
 
             if (str_contains($local, 'release.tar.gz')) {
@@ -207,29 +206,29 @@ function deployPromoteShell(string $currentJson, string $manifestJson): FakeShel
                 file_put_contents($local, $manifestJson);
             }
 
-            return new \Tool\Deploy\ShellResult(0, '', '');
+            return new \Sourcerer\Tool\Code\ShellResult(0, '', '');
         }
 
         if ($binary === 'curl') {
             if (str_contains($last, '_sr-check')) {
-                return new \Tool\Deploy\ShellResult(0, json_encode([
+                return new \Sourcerer\Tool\Code\ShellResult(0, json_encode([
                     'php' => '8.2.20',
                     'extensions' => ['pdo', 'pdo_sqlite'],
                 ], JSON_THROW_ON_ERROR), '');
             }
 
             if ($last === 'https://dev.example.com') {
-                return new \Tool\Deploy\ShellResult(0, '302 https://staging.example.com', '');
+                return new \Sourcerer\Tool\Code\ShellResult(0, '302 https://staging.example.com', '');
             }
 
             if (str_ends_with($last, '/missing')) {
-                return new \Tool\Deploy\ShellResult(0, '404', '');
+                return new \Sourcerer\Tool\Code\ShellResult(0, '404', '');
             }
 
-            return new \Tool\Deploy\ShellResult(0, '200', '');
+            return new \Sourcerer\Tool\Code\ShellResult(0, '200', '');
         }
 
-        return new \Tool\Deploy\ShellResult(0, '', '');
+        return new \Sourcerer\Tool\Code\ShellResult(0, '', '');
     });
 }
 
@@ -239,7 +238,7 @@ test('promote moves the current release to the next target and retires the sourc
     $releaseId = 'abcdef123456-20261105T102030';
     $contentHash = 'sha256:abcdef1234567890';
 
-        $manifest = new \Tool\Deploy\Release\ReleaseManifest(
+        $manifest = new \Sourcerer\Tool\Code\Release\ReleaseManifest(
         $releaseId,
         $contentHash,
         '1.0.0',
@@ -251,7 +250,7 @@ test('promote moves the current release to the next target and retires the sourc
     );
 
     $manifestJson = json_encode($manifest->toArray(), JSON_THROW_ON_ERROR);
-    (new \Tool\Deploy\Release\ReleaseStore($root))->persist($manifest);
+    (new \Sourcerer\Tool\Code\Release\ReleaseStore($root))->persist($manifest);
 
     $current = json_encode([
         'releaseId' => $releaseId,
@@ -268,7 +267,7 @@ test('promote moves the current release to the next target and retires the sourc
         throw new RuntimeException('could not open stream');
     }
 
-    $command = new \Tool\Deploy\Command\PromoteCommand($root, $shell);
+    $command = new \Sourcerer\Tool\Code\Command\PromoteCommand($root, $shell);
     $code = $command->run(
         deployCommandInput($command, ['--from=development']),
         DeployFixtures::output($stream),
@@ -289,7 +288,7 @@ test('promote moves the current release to the next target and retires the sourc
 
 test('retire aborts when the source has nested webroots', function () {
     $root = DeployFixtures::workspace();
-    $deployer = new \Tool\Deploy\Deployer(
+    $promoter = new \Sourcerer\Tool\Code\Promotion\Promoter(
         $root,
         DeployFixtures::target(nestedWebroots: ['dev']),
         DeployFixtures::shell(),
@@ -297,7 +296,7 @@ test('retire aborts when the source has nested webroots', function () {
         DeployFixtures::operator(),
     );
 
-    expect(fn () => $deployer->retire('https://staging.example.com', 'staging'))
+    expect(fn () => $promoter->retire('https://staging.example.com', 'staging'))
         ->toThrow(RuntimeException::class, 'nested webroots');
 });
 
@@ -313,8 +312,8 @@ function deployReleasesWorkspace(): string
     $root = deployPromoteWorkspace();
     $releaseId = 'abcdef123456-20261105T102030';
 
-    (new \Tool\Deploy\Release\ReleaseStore($root))->persist(
-        new \Tool\Deploy\Release\ReleaseManifest(
+    (new \Sourcerer\Tool\Code\Release\ReleaseStore($root))->persist(
+        new \Sourcerer\Tool\Code\Release\ReleaseManifest(
             $releaseId,
             'sha256:abcdef1234567890',
             '1.0.0',
@@ -356,7 +355,7 @@ test('releases command reads local history without ssh', function () {
         throw new RuntimeException('could not open stream');
     }
 
-    $command = new \Tool\Deploy\Command\ReleasesCommand($root);
+    $command = new \Sourcerer\Tool\Code\Command\ReleasesCommand($root);
     $code = $command->run(
         deployReleasesInput($command, []),
         DeployFixtures::output($stream),
@@ -380,7 +379,7 @@ test('releases command filters local history by target', function () {
         throw new RuntimeException('could not open stream');
     }
 
-    $command = new \Tool\Deploy\Command\ReleasesCommand($root);
+    $command = new \Sourcerer\Tool\Code\Command\ReleasesCommand($root);
     $command->run(
         deployReleasesInput($command, ['--target=staging']),
         DeployFixtures::output($stream),
@@ -402,8 +401,8 @@ test('releases sync runs all targets and rejects target combination', function (
         throw new RuntimeException('could not open stream');
     }
 
-    $shell = new FakeShell(fn (): \Tool\Deploy\ShellResult => new \Tool\Deploy\ShellResult(0, '', ''));
-    $command = new \Tool\Deploy\Command\ReleasesCommand($root, $shell);
+    $shell = new FakeShell(fn (): \Sourcerer\Tool\Code\ShellResult => new \Sourcerer\Tool\Code\ShellResult(0, '', ''));
+    $command = new \Sourcerer\Tool\Code\Command\ReleasesCommand($root, $shell);
 
     $code = $command->run(
         deployReleasesInput($command, ['--sync']),
@@ -433,8 +432,8 @@ test('releases sync continues on errors and returns failure', function () {
         throw new RuntimeException('could not open stream');
     }
 
-    $shell = new FakeShell(fn (array $command): \Tool\Deploy\ShellResult => new \Tool\Deploy\ShellResult(1, '', 'sync boom'));
-    $command = new \Tool\Deploy\Command\ReleasesCommand($root, $shell);
+    $shell = new FakeShell(fn (array $command): \Sourcerer\Tool\Code\ShellResult => new \Sourcerer\Tool\Code\ShellResult(1, '', 'sync boom'));
+    $command = new \Sourcerer\Tool\Code\Command\ReleasesCommand($root, $shell);
 
     $code = $command->run(
         deployReleasesInput($command, ['--sync']),
@@ -453,11 +452,11 @@ test('deploy help exposes required target and from options', function () {
     $root = DeployFixtures::workspace();
     $group = CliFixtures::run(
         [
-            'deploy promote' => new \Tool\Deploy\Command\PromoteCommand($root),
-            'deploy push' => new \Tool\Deploy\Command\PushCommand($root),
-            'deploy releases' => new \Tool\Deploy\Command\ReleasesCommand($root),
+            'code promote' => new \Sourcerer\Tool\Code\Command\PromoteCommand($root),
+            'code push' => new \Sourcerer\Tool\Code\Command\PushCommand($root),
+            'code releases' => new \Sourcerer\Tool\Code\Command\ReleasesCommand($root),
         ],
-        ['deploy'],
+        ['code'],
     );
 
     expect($group['stdout'])
@@ -472,12 +471,12 @@ test('deploy help exposes required target and from options', function () {
 test('releases help shows usage without examples', function () {
     $root = DeployFixtures::workspace();
     $result = CliFixtures::run(
-        ['deploy releases' => new \Tool\Deploy\Command\ReleasesCommand($root)],
-        ['deploy'],
+        ['code releases' => new \Sourcerer\Tool\Code\Command\ReleasesCommand($root)],
+        ['code'],
     );
 
     expect($result['stdout'])
-        ->toContain('sourcerer deploy releases [--target=<target>] | --sync')
+        ->toContain('sourcerer code releases [--target=<target>] | --sync')
         ->toContain('--sync')
         ->and($result['stdout'])->not->toContain('Examples:');
 });
@@ -486,8 +485,8 @@ test('releases help shows usage without examples', function () {
 test('releases json option is no longer accepted', function () {
     $root = DeployFixtures::workspace();
     $result = CliFixtures::run(
-        ['deploy releases' => new \Tool\Deploy\Command\ReleasesCommand($root)],
-        ['deploy', 'releases', '--json'],
+        ['code releases' => new \Sourcerer\Tool\Code\Command\ReleasesCommand($root)],
+        ['code', 'releases', '--json'],
     );
 
     expect($result['code'])->toBe(ExitCode::Invalid->value)
@@ -510,7 +509,7 @@ test('promote rejects demonstration as source', function () {
         ],
     ], JSON_THROW_ON_ERROR));
 
-    $command = new \Tool\Deploy\Command\PromoteCommand($root, DeployFixtures::shell());
+    $command = new \Sourcerer\Tool\Code\Command\PromoteCommand($root, DeployFixtures::shell());
 
     expect(fn () => $command->run(
         deployCommandInput($command, ['--from=demonstration']),

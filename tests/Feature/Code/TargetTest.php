@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-use Tests\Feature\Deploy\DeployFixtures;
+use Tests\Feature\Code\DeployFixtures;
 
 
 test('builds the ssh target', function () {

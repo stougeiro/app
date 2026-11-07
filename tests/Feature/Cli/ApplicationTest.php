@@ -2,8 +2,8 @@
 
 use Tests\Feature\Cli\CliFixtures;
 use Tests\Feature\Cli\RecordingCommand;
-use Tool\Contract\ExitCode;
-use Tool\Contract\Option;
+use Sourcerer\Tool\Contract\ExitCode;
+use Sourcerer\Tool\Contract\Option;
 
 
 function recordingCommands(): array
@@ -90,7 +90,7 @@ test('returns the command exit code', function () {
 
 test('returns failure when a command throws', function () {
     $commands = [
-        'boom' => new class implements Tool\Contract\CommandInterface {
+        'boom' => new class implements Sourcerer\Tool\Contract\CommandInterface {
             public function name(): string
             {
                 return 'boom';
@@ -111,7 +111,7 @@ test('returns failure when a command throws', function () {
                 return [];
             }
 
-            public function run(Tool\Contract\InputInterface $input, Tool\Contract\OutputInterface $output): int
+            public function run(Sourcerer\Tool\Contract\InputInterface $input, Sourcerer\Tool\Contract\OutputInterface $output): int
             {
                 throw new RuntimeException('boom');
             }

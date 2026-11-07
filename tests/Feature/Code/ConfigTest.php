@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-use Tool\Deploy\Config;
+use Sourcerer\Tool\Code\Config;
 
 
 /**

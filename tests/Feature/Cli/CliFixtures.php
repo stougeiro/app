@@ -2,11 +2,11 @@
 
 namespace Tests\Feature\Cli;
 
-use Tool\Cli\Application;
-use Tool\Contract\CommandInterface;
-use Tool\Contract\InputInterface;
-use Tool\Contract\Option;
-use Tool\Contract\OutputInterface;
+use Sourcerer\Tool\Manager\Application;
+use Sourcerer\Tool\Contract\CommandInterface;
+use Sourcerer\Tool\Contract\InputInterface;
+use Sourcerer\Tool\Contract\Option;
+use Sourcerer\Tool\Contract\OutputInterface;
 
 
 final class RecordingCommand implements CommandInterface

@@ -1,11 +1,11 @@
 <?php declare(strict_types=1);
 
-use Tool\Deploy\Environment\EnvironmentChain;
-use Tool\Deploy\Release\ReleaseHasher;
-use Tool\Deploy\Release\ReleaseId;
-use Tests\Feature\Deploy\FakeShell;
-use Tool\Deploy\Release\ArtifactVerifier;
-use Tool\Deploy\Retirement\RedirectStub;
+use Sourcerer\Tool\Code\Environment\EnvironmentChain;
+use Sourcerer\Tool\Code\Release\ReleaseHasher;
+use Sourcerer\Tool\Code\Release\ReleaseId;
+use Tests\Feature\Code\FakeShell;
+use Sourcerer\Tool\Code\Release\ArtifactVerifier;
+use Sourcerer\Tool\Code\Retirement\RedirectStub;
 
 
 function deployReleaseWorkspace(): string
@@ -117,24 +117,24 @@ test('artifact verifier hashes files', function () {
 test('artifact verifier checks the remote hash', function () {
     $expected = 'sha256:'. hash('sha256', 'artifact');
 
-    $okShell = new FakeShell(fn (): \Tool\Deploy\ShellResult => new \Tool\Deploy\ShellResult(
+    $okShell = new FakeShell(fn (): \Sourcerer\Tool\Code\ShellResult => new \Sourcerer\Tool\Code\ShellResult(
         0,
         hash('sha256', 'artifact'),
         '',
     ));
-    $badShell = new FakeShell(fn (): \Tool\Deploy\ShellResult => new \Tool\Deploy\ShellResult(
+    $badShell = new FakeShell(fn (): \Sourcerer\Tool\Code\ShellResult => new \Sourcerer\Tool\Code\ShellResult(
         0,
         hash('sha256', 'other'),
         '',
     ));
-    $missingTool = new FakeShell(fn (): \Tool\Deploy\ShellResult => new \Tool\Deploy\ShellResult(
+    $missingTool = new FakeShell(fn (): \Sourcerer\Tool\Code\ShellResult => new \Sourcerer\Tool\Code\ShellResult(
         0,
         '__NO_TOOL__',
         '',
     ));
 
     $verifier = new ArtifactVerifier();
-    $target = \Tests\Feature\Deploy\DeployFixtures::target();
+    $target = \Tests\Feature\Code\DeployFixtures::target();
 
     expect($verifier->verifyRemote($target, $okShell, '/tmp/release.tar.gz', $expected))
         ->toBe(['available' => true, 'ok' => true])

@@ -1,6 +1,11 @@
 <?php declare(strict_types=1);
 
 use App\Core\Log\PhpErrorLog;
+use Tests\Fixtures\PhpErrorLogTestable;
+
+beforeEach(function () {
+    PhpErrorLogTestable::reset();
+});
 
 test('configures a daily php error log when the directory is writable', function () {
     $directory = sys_get_temp_dir() . '/php_error_log_'. uniqid();
@@ -33,40 +38,52 @@ test('does not configure a missing directory', function () {
 });
 
 test('does not configure a directory without write permission', function () {
-    if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
-        $this->markTestSkipped('permission checks require a non-root user');
-    }
-
     $directory = sys_get_temp_dir() . '/php_error_ro_'. uniqid();
-    mkdir($directory, 0500);
     $path = $directory .'/php-error.log';
 
-    try {
-        expect(PhpErrorLog::configure($path))->toBeFalse();
-    } finally {
-        chmod($directory, 0700);
-        rmdir($directory);
-    }
+    PhpErrorLogTestable::denyWritable($directory);
+
+    expect(PhpErrorLogTestable::configure($path))->toBeFalse();
 });
 
 test('does not configure an existing file without write permission', function () {
-    if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
-        $this->markTestSkipped('permission checks require a non-root user');
-    }
-
     $directory = sys_get_temp_dir() . '/php_error_file_'. uniqid();
-    mkdir($directory);
     $path = $directory .'/php-error.log';
-    touch($path);
-    chmod($path, 0444);
 
-    try {
-        expect(PhpErrorLog::configure($path))->toBeFalse();
-    } finally {
-        chmod($path, 0644);
-        unlink($path);
-        rmdir($directory);
-    }
+    PhpErrorLogTestable::allowFile($path);
+    PhpErrorLogTestable::denyWritable($path);
+
+    expect(PhpErrorLogTestable::configure($path))->toBeFalse();
+});
+
+test('does not configure when ini_set is unavailable', function () {
+    PhpErrorLogTestable::disableFunction('ini_set');
+
+    expect(PhpErrorLogTestable::configure('/tmp/php-error.log'))->toBeFalse();
+});
+
+test('does not configure when ini_set is disabled', function () {
+    PhpErrorLogTestable::setIni('disable_functions', 'ini_set');
+
+    expect(PhpErrorLogTestable::configure('/tmp/php-error.log'))->toBeFalse();
+});
+
+test('does not configure when ini_set fails', function () {
+    PhpErrorLogTestable::failIniSet('error_log');
+
+    expect(PhpErrorLogTestable::configure('/tmp/php-error.log'))->toBeFalse();
+});
+
+test('restores the previous error_log when ini_set does not stick', function () {
+    PhpErrorLogTestable::setIni('error_log', '/tmp/previous.log');
+    PhpErrorLogTestable::iniSetReturns('error_log', '/tmp/previous.log');
+
+    expect(PhpErrorLogTestable::configure('/tmp/php-error.log'))->toBeFalse()
+        ->and(PhpErrorLogTestable::$iniSetCalls)->toHaveCount(2)
+        ->and(PhpErrorLogTestable::$iniSetCalls[1])->toBe([
+            'name' => 'error_log',
+            'value' => '/tmp/previous.log',
+        ]);
 });
 
 test('keeps an already configured error log unchanged', function () {

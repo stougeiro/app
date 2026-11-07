@@ -1,9 +1,9 @@
 <?php declare(strict_types=1);
 
-use Tool\Deploy\Deployer;
-use Tool\Deploy\ShellResult;
-use Tests\Feature\Deploy\DeployFixtures;
-use Tests\Feature\Deploy\FakeShell;
+use Sourcerer\Tool\Code\Deployer;
+use Sourcerer\Tool\Code\ShellResult;
+use Tests\Feature\Code\DeployFixtures;
+use Tests\Feature\Code\FakeShell;
 
 
 function deployDeployerWorkspace(): string
@@ -498,9 +498,9 @@ test('rollback rejects a backup for another layout', function () {
 });
 
 
-function deployTestDeployer(string $root, \Tool\Deploy\Target $target, \Tool\Deploy\Shell $shell): Deployer
+function deployTestDeployer(string $root, \Sourcerer\Tool\Code\Target $target, \Sourcerer\Tool\Code\Shell $shell): Deployer
 {
-    return new \Tool\Deploy\Deployer($root, $target, $shell, DeployFixtures::output(), DeployFixtures::operator());
+    return new \Sourcerer\Tool\Code\Deployer($root, $target, $shell, DeployFixtures::output(), DeployFixtures::operator());
 }
 
 
