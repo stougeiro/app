@@ -16,7 +16,7 @@ bootstrap / config
     ↓
 provider
     ↓
-application/modules → application/core
+application/module → application/core
     ↓
 stougeiro/base → stougeiro/base-contract
 ```
@@ -25,9 +25,9 @@ The rules are:
 
 - `public` is the entrypoint and public asset directory only;
 - `application/core` contains application foundations and cross-cutting behavior;
-- `application/modules` contains application-local modules;
-- `application/core` must not depend on `application/modules`;
-- `application/modules` may depend on `application/core`;
+- `application/module` contains application-local modules;
+- `application/core` must not depend on `application/module`;
+- `application/module` may depend on `application/core`;
 - `provider` wires external services and may use `application/core`;
 - reusable contracts belong to `stougeiro/base-contract`, not to this app;
 - the FPM runtime belongs to `stougeiro/base`, not to this app.
@@ -36,7 +36,7 @@ The rules are:
 
 ```text
 application/
-├── modules/      application-local modules
+├── module/       application-local modules
 ├── bootstrap/    runtime bootstrap
 ├── config/       application configuration
 ├── core/         application foundations (HTTP, security, logging, errors)
@@ -64,18 +64,18 @@ Nothing under `application/` should be exposed by the web server.
 | App-wide foundation or cross-cutting behavior | `application/core` |
 | Security service or middleware | `application/core/Security` |
 | Service construction and container bindings | `application/provider` |
-| Application-local feature | `application/modules/<Module>` |
+| Application-local feature | `application/module/<Module>` |
 | Global middleware policy | `application/config/middlewares.php` |
-| Module/controller middleware | `application/modules/<Module>/Config/middlewares.php` |
-| Module routes | `application/modules/<Module>/Config/routes.php` |
-| Module controller | `application/modules/<Module>/Controller` |
-| Module view | `application/modules/<Module>/View` |
+| Module/controller middleware | `application/module/<Module>/Config/middlewares.php` |
+| Module routes | `application/module/<Module>/Config/routes.php` |
+| Module controller | `application/module/<Module>/Controller` |
+| Module view | `application/module/<Module>/View` |
 | Public CSS/assets | `public/assets` |
 | Application configuration | `application/config` |
 | Tests | `tests` |
 | Shared tool contracts | `tools/contract` |
-| Pluggable CLI runtime | `tools/cli` |
-| Deploy tool source | `tools/deploy` |
+| Pluggable CLI runtime | `tools/manager` |
+| Code tool source | `tools/code` |
 | Tool entrypoint | `./sourcerer` |
 | Deploy configuration/state | `deploy.json`, `.deploy` (local only) |
 
@@ -87,7 +87,7 @@ business rules in providers, and do not put runtime services in `public`.
 A local module belongs to this application and may use `App\Core`.
 
 ```text
-application/modules/HelloWorld/
+application/module/HelloWorld/
 ├── Config/
 │   ├── middlewares.php
 │   └── routes.php
@@ -211,7 +211,7 @@ Use it for application-wide policy:
 Module middleware is declared in:
 
 ```text
-application/modules/<Module>/Config/middlewares.php
+application/module/<Module>/Config/middlewares.php
 ```
 
 It is loaded by the module provider and applies to the module wildcard (`*`) or
@@ -224,8 +224,8 @@ Use it for behavior owned by a single module.
 Error behavior is split intentionally:
 
 - `application/core/Error/ViewErrorRenderer.php`: rendering policy;
-- `application/modules/Error/ErrorModuleProvider.php`: view alias registration;
-- `application/modules/Error/View`: development and production error pages;
+- `application/module/Error/ErrorModuleProvider.php`: view alias registration;
+- `application/module/Error/View`: development and production error pages;
 - `application/config/error.php`: renderer, messages and snippet configuration.
 
 Development pages may show diagnostic detail. Production pages expose only the
@@ -295,7 +295,7 @@ From the repository root:
 composer validate --strict
 composer stan
 composer pest
-composer cover:deploy
+composer cover:code
 ```
 
 Tests must verify observable behavior:
@@ -306,7 +306,7 @@ Tests must verify observable behavior:
 - log classification;
 - security headers;
 - fallback behavior where applicable;
-- deploy configuration, transfer isolation, backups and rollback.
+- Code tool configuration, transfer isolation, backups and rollback.
 
 Do not test private implementation details or internal call order unless that
 order is the behavior being protected.
@@ -332,64 +332,69 @@ vendor/        → Composer dependencies outside the web root
 `vendor/` is generated outside the server and copied with the application. The
 shared host does not need Composer at runtime.
 
-The optional deploy tool automates this transfer with per-target layout,
+The optional Code tool automates this transfer with per-target layout,
 maintenance mode, verification, remote backups and rollback. The manual flow
-remains valid. See [DEPLOY.md](DEPLOY.md).
+remains valid. See [Code tool](CODE.md).
 
 ## Tools
 
-Tools are repository tooling, not an application layer. They use the application
-through its bootstrap and container, but the application must never depend on
-them:
+Tools are repository tooling, not an application layer. They are independent
+from the application runtime: they do not load its bootstrap, container or
+providers.
 
 ```text
 ./sourcerer
     ↓
-tools/cli
+tools/manager
     ↓
 tools/contract
     ↑
-tools/deploy
+tools/code
 ```
 
 The rules are:
 
-- shared tool contracts live in `tools/contract`;
-- the pluggable runtime lives in `tools/cli`;
-- each tool lives in `tools/<tool>` and registers commands explicitly;
-- tools must not be required by `application/`, providers or modules;
+- `tools/contract` holds shared tool contracts (`Sourcerer\Tool\Contract`);
+- `tools/manager` holds the CLI runtime (`Sourcerer\Tool\Manager`);
+- each tool lives in `tools/<tool>`; `tools/code` is the first one
+  (`Sourcerer\Tool\Code`);
+- tools are registered explicitly in `tools/manager/tools.php`;
+- tools receive the project root explicitly through
+  `ToolInterface::commands(string $projectRoot)`;
+- tools must not require `application/`, `stougeiro/base`, the application
+  bootstrap or its container;
 - tools must not be uploaded to the server;
 - `deploy.json` and `.deploy/` are local configuration/state and are ignored by
   Git;
 - SSH keys and environment values stay outside version control.
 
-The tool deploys only:
+The Code tool deploys only:
 
 ```text
 application/   → target root
-public/   → target webroot
+public/        → target webroot
 vendor/        → target root
 ```
 
 Each target declares `root`, `webroot`, `url` and SSH settings in `deploy.json`.
-The deploy tool validates paths and target address uniqueness, applies
-maintenance mode, creates remote backups and supports rollback.
+The Code tool validates paths and target address uniqueness, applies maintenance
+mode, creates remote backups and supports rollback.
 
 ### Change scope
 
 The normal application change scope is `application/*` and `public/*`.
 
-Tool changes must follow the `tools/contract`, `tools/cli` and `tools/<tool>`
-boundaries. Application work must not refactor, move, rename or opportunistically
-"fix" tooling.
+Tool changes must follow the `tools/contract`, `tools/manager` and
+`tools/<tool>` boundaries. Application work must not refactor, move, rename or
+opportunistically "fix" tooling.
 
-See [DEPLOY.md](DEPLOY.md) for configuration and command reference.
+See [Code tool](CODE.md) for configuration and command reference.
 
 ## Anti-patterns
 
 - Putting vendor services in `public`.
 - Putting business logic in providers.
-- Making `application/core` depend on `application/modules`.
+- Making `application/core` depend on `application/module`.
 - Making an installable module depend on `App\Core`.
 - Adding implicit module discovery.
 - Adding inline `<style>` or inline scripts under `style-src 'self'`.

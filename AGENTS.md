@@ -1,7 +1,7 @@
 # AGENTS
 
 This file is the operational guide for agents working on this application.
-Read `ARCHITECTURE.md` before changing code.
+Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing code.
 
 ## Core rules
 
@@ -9,15 +9,18 @@ Read `ARCHITECTURE.md` before changing code.
 - Keep reusable contracts in `stougeiro/base-contract`.
 - Keep the FPM runtime in `stougeiro/base`.
 - Keep app foundations and cross-cutting behavior in `application/core`.
-- Keep application-local modules in `application/modules`.
+- Keep application-local modules in `application/module`.
 - Keep service wiring in `application/provider`.
 - Keep global policy in `application/config`.
 - Keep only the entrypoint and public assets in `public`.
 - Keep shared tool contracts in `tools/contract`.
-- Keep the pluggable tool runtime in `tools/cli`.
-- Keep tool source in `tools/<tool>` and register tools in `tools/cli/tools.php`.
+- Keep the pluggable tool runtime in `tools/manager`.
+- Keep tool source in `tools/<tool>` and register tools in
+  `tools/manager/tools.php`.
 - Use `./sourcerer` as the single tool entrypoint.
-- Read `DEPLOY.md` before changing deployment behavior.
+- Keep reference documentation in `docs/`; only `README.md` and `AGENTS.md`
+  live at the repository root.
+- Read [docs/CODE.md](docs/CODE.md) before changing deployment behavior.
 - Treat `application/*` and `public/*` as the normal application change scope.
 - Keep tools independent from the application runtime; the application must
   never require `tools/`.
@@ -31,18 +34,18 @@ Read `ARCHITECTURE.md` before changing code.
 | App-wide foundation or behavior | `application/core` |
 | Security service or middleware | `application/core/Security` |
 | DI wiring | `application/provider` |
-| Local feature/module | `application/modules/<Module>` |
+| Local feature/module | `application/module/<Module>` |
 | Global middleware | `application/config/middlewares.php` |
-| Module middleware | `application/modules/<Module>/Config/middlewares.php` |
-| Routes | `application/modules/<Module>/Config/routes.php` |
-| Controller | `application/modules/<Module>/Controller` |
-| View | `application/modules/<Module>/View` |
+| Module middleware | `application/module/<Module>/Config/middlewares.php` |
+| Routes | `application/module/<Module>/Config/routes.php` |
+| Controller | `application/module/<Module>/Controller` |
+| View | `application/module/<Module>/View` |
 | Public CSS/assets | `public/assets` |
 | Configuration | `application/config` |
 | Tests | `tests` |
 | Shared tool contracts | `tools/contract` |
-| CLI runtime | `tools/cli` |
-| Deploy tool source | `tools/deploy` |
+| CLI runtime | `tools/manager` |
+| Code tool source | `tools/code` |
 | Tool entrypoint | `./sourcerer` |
 | Deploy config/state | `deploy.json`, `.deploy` (local only) |
 
@@ -50,7 +53,7 @@ Read `ARCHITECTURE.md` before changing code.
 
 ### Local module
 
-- Lives in `application/modules/<Module>`.
+- Lives in `application/module/<Module>`.
 - Extends `App\Core\Module\ModuleProviderAbstract`.
 - Controllers extend `App\Core\Http\ControllerAbstract`.
 - Registers routes, middlewares and views through its provider.
@@ -89,8 +92,8 @@ Read `ARCHITECTURE.md` before changing code.
 - Do not add a second log channel for the same concern.
 - Do not implement log retention in the application.
 - `Fallback` is independent and intentionally outside application middleware.
-- Error views belong in `application/modules/Error/View`; error rendering policy belongs
-  in `application/core/Error`.
+- Error views belong in `application/module/Error/View`; error rendering policy
+  belongs in `application/core/Error`.
 
 ## Providers
 
@@ -99,26 +102,45 @@ Read `ARCHITECTURE.md` before changing code.
 - Register providers explicitly in `application/config/app.php`.
 - Keep provider order intentional when one provider depends on another.
 
-## Deploy
+## Code tool
 
-- Read `DEPLOY.md` before using or configuring the deploy tool.
+- Read [docs/CODE.md](docs/CODE.md) before using or configuring the Code tool.
 - The normal change scope is `application/*` and `public/*`.
-- Deploy source lives in `tools/deploy` and runs through `./sourcerer deploy`.
+- The tool source lives in `tools/code` and runs through `./sourcerer code`.
 - Successful pushes create immutable releases under `.deploy/releases`; promote
   reuses the same releaseId across targets.
-- Environment values come only from `.deploy/override/<target>/application/env.json`;
-  remote or backed-up env files are never reused.
-- `deploy.json` must declare `operator.name`; release/event identity comes from it.
-- `deploy releases` reads the local mirror; `--sync` mirrors all targets.
-- The deploy tool is repository tooling. Do not require it from `application/`,
+- Environment values come only from
+  `.deploy/override/<target>/application/env.json`; remote or backed-up env
+  files are never reused.
+- `deploy.json` must declare `operator.name`; release/event identity comes from
+  it.
+- `code releases` reads the local mirror; `--sync` mirrors all targets.
+- The Code tool is repository tooling. Do not require it from `application/`,
   providers or modules.
-- Do not upload `tools/deploy/` to the server. A deploy transfers only
+- Do not upload `tools/code/` to the server. A deploy transfers only
   `application/`, `public/` and `vendor/`.
 - Do not commit `deploy.json`, `.deploy/`, environment files or SSH keys.
-- Keep deploy behavior covered by `tests/Feature/Deploy` and entrypoint behavior
+- Keep Code behavior covered by `tests/Feature/Code` and entrypoint behavior
   covered by `tests/Feature/EntrypointTest.php`.
-- Use `./sourcerer deploy --help` to validate the CLI.
+- Use `./sourcerer code --help` to validate the CLI.
 - Docker is the only local runtime requirement for `./sourcerer`.
+
+## Tools boundary
+
+- Namespaces:
+  - `Sourcerer\Tool\Contract` in `tools/contract/src`;
+  - `Sourcerer\Tool\Manager` in `tools/manager/src`;
+  - `Sourcerer\Tool\Code` in `tools/code/src`.
+- `tools/manager/console.php` owns autoload, the tool registry and the project
+  root.
+- Every tool implements `Sourcerer\Tool\Contract\ToolInterface` and receives
+  the project root through `commands(string $projectRoot)`.
+- Tools must not load `application/bootstrap/app.php`, the application
+  container or `stougeiro/base`.
+- Tool code must not import application runtime classes: `App\*`, `STDW\*`, or
+  `Sourcerer\*` outside the `Sourcerer\Tool\*` namespace.
+- The application must never require `tools/`.
+- Keep the tool runtime image in `tools/manager/Dockerfile`.
 
 ## Dependencies
 
@@ -140,8 +162,11 @@ From the repository root:
 composer validate --strict
 composer stan
 composer pest
-composer cover:deploy
+composer cover:code
 ```
+
+Run the test suite as a non-root user. Filesystem and permission-sensitive
+behavior must be tested, not skipped.
 
 For Docker changes:
 
@@ -164,8 +189,9 @@ Docker-only paths or Apache vhost edits.
 - Add inline CSS or scripts under the current CSP.
 - Treat Docker as a production requirement.
 - Commit deploy secrets, environment values or SSH keys.
-- Put deploy source under `public` or require it from the runtime.
+- Put tool source under `public` or require it from the runtime.
 - Make `application/` depend on `tools/`.
+- Make `tools/` depend on `application/` or the application bootstrap.
 - Add abstractions without a real second use case.
 - Suppress errors or logs without an explicit operational reason.
 - Edit the `base` or `base-contract` repositories from this app unless the task
@@ -176,6 +202,7 @@ Docker-only paths or Apache vhost edits.
 - Prefer the smallest change that fits the existing layers.
 - Follow the nearest existing pattern.
 - If the change affects boundaries, middleware order, logging, security or
-  deployment, read `DEPLOY.md` where applicable and ask before implementing.
-- If a task appears to require changing deploy tooling, stop and ask before
+  deployment, read [docs/CODE.md](docs/CODE.md) where applicable and ask before
+  implementing.
+- If a task appears to require changing tool boundaries, stop and ask before
   editing.

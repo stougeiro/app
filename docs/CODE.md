@@ -1,26 +1,26 @@
-# Deploy
+# Code
 
-This document describes the deployment tool: its boundaries, configuration,
+This document describes the Code tool: its boundaries, configuration,
 commands and operational behavior.
 
-The deploy tool is repository tooling. It is not part of the application
+The Code tool is repository tooling. It is not part of the application
 runtime and must never be uploaded to the server. A deployment copies only
 `application/`, `public/` and `vendor/`.
 
 ## Layout
 
 ```text
-./sourcerer                  unified tool entrypoint
-tools/contract/              shared tool contracts
-tools/cli/                   pluggable CLI runtime
-tools/deploy/                deploy tool and example
-tools/cli/Dockerfile         tool runtime image
-tools/deploy/src/            deploy classes
-tools/deploy/src/Command/    deploy commands
-tools/deploy/resources/stub/ default redirect stubs for retired targets
-tools/deploy/deploy.example.json
-deploy.json                  local configuration (not versioned)
-.deploy/                     local state and secrets (not versioned)
+./sourcerer                   unified tool entrypoint
+tools/contract/               shared tool contracts
+tools/manager/                pluggable CLI runtime
+tools/code/                   Code tool and example
+tools/manager/Dockerfile      tool runtime image
+tools/code/src/               Code classes
+tools/code/src/Command/       Code commands
+tools/code/resources/stub/    default redirect stubs for retired targets
+tools/code/deploy.example.json
+deploy.json                   local configuration (not versioned)
+.deploy/                      local state and secrets (not versioned)
 ```
 
 Local `.deploy/` also contains:
@@ -42,14 +42,14 @@ usually points to `public_html/` or another document root.
 ## Local requirements
 
 Docker is the only local requirement. The tool image is built on demand from
-`tools/cli/Dockerfile` and contains PHP 8.2, Composer, rsync, OpenSSH, scp,
+`tools/manager/Dockerfile` and contains PHP 8.2, Composer, rsync, OpenSSH, scp,
 curl and tar.
 
 The image is tagged `stougeiro/sourcerer:local`. If the Dockerfile changes,
 rebuild it explicitly:
 
 ```bash
-docker build -t stougeiro/sourcerer:local tools/cli
+docker build -t stougeiro/sourcerer:local tools/manager
 ```
 
 ## Operator
@@ -141,7 +141,7 @@ Remote retention is configured per target/defaults:
 ## Quick start
 
 ```bash
-./sourcerer deploy init
+./sourcerer code init
 ```
 
 Then:
@@ -152,13 +152,13 @@ Then:
 4. validate the connection:
 
 ```bash
-./sourcerer deploy check --target=staging
+./sourcerer code check --target=staging
 ```
 
 Deploy:
 
 ```bash
-./sourcerer deploy push --target=staging
+./sourcerer code push --target=staging
 ```
 
 ## Targets
@@ -330,15 +330,15 @@ restored by `rollback`.
 
 | Command | Purpose |
 |---|---|
-| `./sourcerer deploy init` | Creates `.deploy/` directories and copies the example to `deploy.json` |
-| `./sourcerer deploy check --target=<name>` | Verifies SSH, writable paths, storage and transport |
-| `./sourcerer deploy push --target=<name>` | Builds vendor, creates a release, backs up, transfers, verifies and prunes backups |
-| `./sourcerer deploy promote --from=<name>` | Promotes the current release to the next target and retires the source |
-| `./sourcerer deploy releases` | Shows local release history |
-| `./sourcerer deploy releases --target=<name>` | Analyzes a single target in local history |
-| `./sourcerer deploy releases --sync` | Syncs all targets; must be used alone |
-| `./sourcerer deploy rollback --target=<name> --list` | Lists backups for the target |
-| `./sourcerer deploy rollback --target=<name> [--timestamp=<Ymd-His>]` | Restores a backup; latest when omitted |
+| `./sourcerer code init` | Creates `.deploy/` directories and copies the example to `deploy.json` |
+| `./sourcerer code check --target=<name>` | Verifies SSH, writable paths, storage and transport |
+| `./sourcerer code push --target=<name>` | Builds vendor, creates a release, backs up, transfers, verifies and prunes backups |
+| `./sourcerer code promote --from=<name>` | Promotes the current release to the next target and retires the source |
+| `./sourcerer code releases` | Shows local release history |
+| `./sourcerer code releases --target=<name>` | Analyzes a single target in local history |
+| `./sourcerer code releases --sync` | Syncs all targets; must be used alone |
+| `./sourcerer code rollback --target=<name> --list` | Lists backups for the target |
+| `./sourcerer code rollback --target=<name> [--timestamp=<Ymd-His>]` | Restores a backup; latest when omitted |
 
 `init` does not accept `--target`. `--list` and `--timestamp` are only valid for
 `rollback` and cannot be used together. `--sync` must be used alone
@@ -398,8 +398,8 @@ development → staging → production
 ```
 
 ```bash
-./sourcerer deploy promote --from=development
-./sourcerer deploy promote --from=staging
+./sourcerer code promote --from=development
+./sourcerer code promote --from=staging
 ```
 
 `promote` never skips a target. It reads the source `current.json`, downloads
@@ -419,7 +419,7 @@ After a successful promotion, the source target is retired:
 
 Stubs are customizable in `.deploy/stub/`. The canonical `index.php` placeholder
 is `%url%`. Missing stub files fall back to the tool defaults in
-`tools/deploy/resources/stub/`.
+`tools/code/resources/stub/`.
 
 A target with nested webroots cannot be retired; promotion aborts.
 
@@ -441,14 +441,14 @@ Local mirrors:
 Reading is always local:
 
 ```bash
-./sourcerer deploy releases
-./sourcerer deploy releases --target=staging
+./sourcerer code releases
+./sourcerer code releases --target=staging
 ```
 
 Synchronization is explicit and always covers every target:
 
 ```bash
-./sourcerer deploy releases --sync
+./sourcerer code releases --sync
 ```
 
 `--sync` does not render the release tree and must be used alone. It tries every
@@ -508,10 +508,10 @@ From the repository root:
 composer validate --strict
 composer stan
 composer pest
-composer cover:deploy
+composer cover:code
 ```
 
-The deploy test suite lives in `tests/Feature/Deploy` and covers configuration,
+The Code test suite lives in `tests/Feature/Code` and covers configuration,
 target isolation, SSH, shell, maintenance, push, backups and rollback.
 Entrypoint behavior under maintenance and fallback is covered by
 `tests/Feature/EntrypointTest.php`.
