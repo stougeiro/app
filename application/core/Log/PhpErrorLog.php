@@ -5,17 +5,17 @@ namespace App\Core\Log;
 use Throwable;
 
 
-final class PhpErrorLog
+class PhpErrorLog
 {
     public static function configure(string $path): bool
     {
-        if ( ! function_exists('ini_set') || ! function_exists('ini_get')) {
+        if ( ! static::doFunctionExists('ini_set') || ! static::doFunctionExists('ini_get')) {
             return false;
         }
 
         $disabled = array_filter(array_map(
             static fn (string $name): string => trim($name),
-            explode(',', (string) ini_get('disable_functions')),
+            explode(',', (string) static::doIniGet('disable_functions')),
         ));
 
         if (in_array('ini_set', $disabled, true)) {
@@ -24,22 +24,22 @@ final class PhpErrorLog
 
         $directory = dirname($path);
 
-        if ( ! is_dir($directory) || ! is_writable($directory)) {
+        if ( ! static::doIsDir($directory) || ! static::doIsWritable($directory)) {
             return false;
         }
 
-        if (is_file($path) && ! is_writable($path)) {
+        if (static::doIsFile($path) && ! static::doIsWritable($path)) {
             return false;
         }
 
-        $originalValue = ini_get('error_log');
+        $originalValue = static::doIniGet('error_log');
 
         if ($originalValue === $path) {
             return true;
         }
 
         try {
-            $result = ini_set('error_log', $path);
+            $result = static::doIniSet('error_log', $path);
         } catch (Throwable) {
             return false;
         }
@@ -48,10 +48,10 @@ final class PhpErrorLog
             return false;
         }
 
-        if (ini_get('error_log') !== $path) {
+        if (static::doIniGet('error_log') !== $path) {
             if (is_string($originalValue) && $originalValue !== '') {
                 try {
-                    ini_set('error_log', $originalValue);
+                    static::doIniSet('error_log', $originalValue);
                 } catch (Throwable) {
                     // The host controls error_log; there is nothing else to do.
                 }
@@ -61,5 +61,36 @@ final class PhpErrorLog
         }
 
         return true;
+    }
+
+
+    protected static function doFunctionExists(string $name): bool
+    {
+        return function_exists($name);
+    }
+
+    protected static function doIniGet(string $name): string|false
+    {
+        return ini_get($name);
+    }
+
+    protected static function doIniSet(string $name, string $value): string|false
+    {
+        return ini_set($name, $value);
+    }
+
+    protected static function doIsDir(string $path): bool
+    {
+        return is_dir($path);
+    }
+
+    protected static function doIsFile(string $path): bool
+    {
+        return is_file($path);
+    }
+
+    protected static function doIsWritable(string $path): bool
+    {
+        return is_writable($path);
     }
 }
