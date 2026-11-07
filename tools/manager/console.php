@@ -1,22 +1,16 @@
 #!/usr/bin/env php
 <?php declare(strict_types=1);
 
-use Tool\Cli\Application;
-use Tool\Contract\ToolInterface;
-
-$projectRoot = getenv('SOURCERER_APP_ROOT');
-
-if ($projectRoot === false || $projectRoot === '') {
-    $projectRoot = dirname(__DIR__, 2);
-}
+use Sourcerer\Tool\Contract\ToolInterface;
+use Sourcerer\Tool\Manager\Application;
 
 $toolsRoot = dirname(__DIR__);
 
 spl_autoload_register(static function (string $class) use ($toolsRoot): void {
     $prefixes = [
-        'Tool\\Contract\\' => $toolsRoot .'/contract/src/',
-        'Tool\\Deploy\\' => $toolsRoot .'/deploy/src/',
-        'Tool\\Cli\\' => $toolsRoot .'/cli/src/',
+        'Sourcerer\\Tool\\Contract\\' => $toolsRoot .'/contract/src/',
+        'Sourcerer\\Tool\\Code\\' => $toolsRoot .'/code/src/',
+        'Sourcerer\\Tool\\Manager\\' => $toolsRoot .'/manager/src/',
     ];
 
     foreach ($prefixes as $prefix => $directory) {
@@ -34,10 +28,17 @@ spl_autoload_register(static function (string $class) use ($toolsRoot): void {
     }
 });
 
-try {
-    /** @var \STDW\Contract\Container\ContainerInterface $container */
-    $container = require __DIR__ .'/bootstrap.php';
+$projectRoot = getenv('SOURCERER_APP_ROOT');
 
+if ($projectRoot === false || $projectRoot === '') {
+    $projectRoot = getenv('SOURCERER_ROOT');
+}
+
+if ($projectRoot === false || $projectRoot === '') {
+    $projectRoot = getcwd() ?: dirname($toolsRoot);
+}
+
+try {
     /** @var list<class-string<ToolInterface>> $tools */
     $tools = require __DIR__ .'/tools.php';
     $commands = [];
@@ -45,7 +46,7 @@ try {
 
     foreach ($tools as $toolClass) {
         $tool = new $toolClass();
-        $commands += $tool->commands($container);
+        $commands += $tool->commands($projectRoot);
         $groups[$tool->name()] = [
             'description' => $tool->description(),
             'version' => $tool->version(),
@@ -58,4 +59,18 @@ try {
     exit(1);
 }
 
-exit($application->run(array_slice($argv, 1)));
+$argv = $_SERVER['argv'] ?? [];
+
+if ( ! is_array($argv)) {
+    $argv = [];
+}
+
+$tokens = [];
+
+foreach ($argv as $token) {
+    if (is_scalar($token)) {
+        $tokens[] = (string) $token;
+    }
+}
+
+exit($application->run(array_slice($tokens, 1)));

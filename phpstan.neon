@@ -8,11 +8,10 @@ parameters:
         - application/provider
         - public
         - tools/contract/src
-        - tools/deploy/src
-        - tools/cli/src
-        - tools/cli/bootstrap.php
-        - tools/cli/console.php
-        - tools/cli/tools.php
+        - tools/code/src
+        - tools/manager/src
+        - tools/manager/console.php
+        - tools/manager/tools.php
     excludePaths:
         - application/module/*/View/*
     bootstrapFiles:

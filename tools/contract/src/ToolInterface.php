@@ -1,8 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Contract;
-
-use STDW\Contract\Container\ContainerInterface;
+namespace Sourcerer\Tool\Contract;
 
 
 interface ToolInterface
@@ -14,5 +12,5 @@ interface ToolInterface
     public function version(): string;
 
     /** @return array<string, CommandInterface> */
-    public function commands(ContainerInterface $container): array;
+    public function commands(string $projectRoot): array;
 }

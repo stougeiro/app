@@ -1,8 +1,8 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Cli;
+namespace Sourcerer\Tool\Manager;
 
-use Tool\Contract\OutputInterface;
+use Sourcerer\Tool\Contract\OutputInterface;
 
 
 final class Output implements OutputInterface

@@ -59,9 +59,9 @@
     "autoload-dev": {
         "psr-4": {
             "Tests\\": "tests/",
-            "Tool\\Contract\\": "tools/contract/src/",
-            "Tool\\Cli\\": "tools/cli/src/",
-            "Tool\\Deploy\\": "tools/deploy/src/"
+            "Sourcerer\\Tool\\Contract\\": "tools/contract/src/",
+            "Sourcerer\\Tool\\Manager\\": "tools/manager/src/",
+            "Sourcerer\\Tool\\Code\\": "tools/code/src/"
         }
     },
     "require-dev": {
@@ -73,7 +73,7 @@
         "pest": "vendor/bin/pest",
         "cover": "vendor/bin/pest --coverage",
         "cover:app": "vendor/bin/pest --coverage --coverage-filter=application",
-        "cover:deploy": "vendor/bin/pest tests/Feature/Deploy --coverage --coverage-filter=tools/deploy/src"
+        "cover:code": "vendor/bin/pest tests/Feature/Code --coverage --coverage-filter=tools/code/src"
     },
     "config": {
         "allow-plugins": {

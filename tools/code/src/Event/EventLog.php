@@ -1,12 +1,13 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy\Event;
+namespace Sourcerer\Tool\Code\Event;
 
 use JsonException;
 use RuntimeException;
-use Tool\Deploy\Shell;
-use Tool\Deploy\Ssh;
-use Tool\Deploy\Target;
+use Sourcerer\Tool\Code\Remote\Scp;
+use Sourcerer\Tool\Code\Shell;
+use Sourcerer\Tool\Code\Ssh;
+use Sourcerer\Tool\Code\Target;
 
 
 final class EventLog
@@ -88,6 +89,19 @@ final class EventLog
     }
 
 
+    public function prune(int $keep): void
+    {
+        $keep = max(1, $keep);
+
+        $this->ssh->run(
+            $this->target,
+            'ls -1t '. Ssh::quote($this->remoteDirectory()) .'/*.json 2>/dev/null'
+            .' | tail -n +'. ($keep + 1)
+            .' | xargs -r rm -f',
+        );
+    }
+
+
     public function localDirectory(): string
     {
         return rtrim($this->projectRoot, '/') .'/.deploy/events';
@@ -121,23 +135,6 @@ final class EventLog
 
     private function downloadFile(string $remote, string $local): void
     {
-        $scp = [
-            'scp',
-            '-P', (string) $this->target->sshPort,
-            '-o', 'BatchMode=yes',
-            '-o', 'ConnectTimeout=15',
-        ];
-
-        $identity = $this->target->identityPath();
-
-        if ($identity !== null) {
-            $scp[] = '-i';
-            $scp[] = $identity;
-        }
-
-        $scp[] = $this->target->sshTarget() .':'. $remote;
-        $scp[] = $local;
-
-        $this->shell->mustRun($scp);
+        (new Scp($this->target, $this->shell))->download($remote, $local);
     }
 }

@@ -1,19 +1,19 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy\Command;
+namespace Sourcerer\Tool\Code\Command;
 
 use RuntimeException;
-use Tool\Contract\ExitCode;
-use Tool\Contract\InputInterface;
-use Tool\Contract\Option;
-use Tool\Contract\OutputInterface;
+use Sourcerer\Tool\Contract\ExitCode;
+use Sourcerer\Tool\Contract\InputInterface;
+use Sourcerer\Tool\Contract\Option;
+use Sourcerer\Tool\Contract\OutputInterface;
 
 
-final class RollbackCommand extends DeployCommandAbstracted
+final class RollbackCommand extends CommandAbstracted
 {
     public function name(): string
     {
-        return 'deploy rollback';
+        return 'code rollback';
     }
 
     public function description(): string

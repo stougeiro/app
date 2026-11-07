@@ -1,38 +1,30 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy;
+namespace Sourcerer\Tool\Code;
 
-use STDW\Contract\Container\ContainerInterface;
-use Tool\Contract\CommandInterface;
-use Tool\Contract\ToolInterface;
-use Tool\Deploy\Command\CheckCommand;
-use Tool\Deploy\Command\InitCommand;
-use Tool\Deploy\Command\PromoteCommand;
-use Tool\Deploy\Command\PushCommand;
-use Tool\Deploy\Command\ReleasesCommand;
-use Tool\Deploy\Command\RollbackCommand;
+use Sourcerer\Tool\Contract\CommandInterface;
+use Sourcerer\Tool\Contract\ToolInterface;
+use Sourcerer\Tool\Code\Command\CheckCommand;
+use Sourcerer\Tool\Code\Command\InitCommand;
+use Sourcerer\Tool\Code\Command\PromoteCommand;
+use Sourcerer\Tool\Code\Command\PushCommand;
+use Sourcerer\Tool\Code\Command\ReleasesCommand;
+use Sourcerer\Tool\Code\Command\RollbackCommand;
 
 
-final class DeployTool implements ToolInterface
+final class CodeTool implements ToolInterface
 {
     public const VERSION = '0.1.0';
 
 
-    public function __construct(
-        protected string $projectRoot = '',
-    ) {
-        $this->projectRoot = $projectRoot !== '' ? $projectRoot : dirname(__DIR__, 3);
-    }
-
-
     public function name(): string
     {
-        return 'deploy';
+        return 'code';
     }
 
     public function description(): string
     {
-        return 'SSH deployment tool';
+        return 'Shared-host code delivery tool';
     }
 
     public function version(): string
@@ -41,15 +33,15 @@ final class DeployTool implements ToolInterface
     }
 
     /** @return array<string, CommandInterface> */
-    public function commands(ContainerInterface $container): array
+    public function commands(string $projectRoot): array
     {
         return [
-            'deploy init' => new InitCommand($this->projectRoot),
-            'deploy check' => new CheckCommand($this->projectRoot),
-            'deploy push' => new PushCommand($this->projectRoot),
-            'deploy promote' => new PromoteCommand($this->projectRoot),
-            'deploy releases' => new ReleasesCommand($this->projectRoot),
-            'deploy rollback' => new RollbackCommand($this->projectRoot),
+            'code init' => new InitCommand($projectRoot),
+            'code check' => new CheckCommand($projectRoot),
+            'code push' => new PushCommand($projectRoot),
+            'code promote' => new PromoteCommand($projectRoot),
+            'code releases' => new ReleasesCommand($projectRoot),
+            'code rollback' => new RollbackCommand($projectRoot),
         ];
     }
 }

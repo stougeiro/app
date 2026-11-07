@@ -1,8 +1,8 @@
 <?php declare(strict_types=1);
 
-use Tool\Deploy\DeployTool;
+use Sourcerer\Tool\Code\CodeTool;
 
 
 return [
-    DeployTool::class,
+    CodeTool::class,
 ];

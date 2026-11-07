@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy;
+namespace Sourcerer\Tool\Code;
 
 use RuntimeException;
 
@@ -65,6 +65,6 @@ class Ssh
 
     public static function quote(string $value): string
     {
-        return escapeshellarg($value);
+        return Shell::quote($value);
     }
 }

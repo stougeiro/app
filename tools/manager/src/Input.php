@@ -1,10 +1,10 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Cli;
+namespace Sourcerer\Tool\Manager;
 
 use InvalidArgumentException;
-use Tool\Contract\InputInterface;
-use Tool\Contract\Option;
+use Sourcerer\Tool\Contract\InputInterface;
+use Sourcerer\Tool\Contract\Option;
 
 
 final class Input implements InputInterface

@@ -1,8 +1,8 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy\Environment;
+namespace Sourcerer\Tool\Code\Environment;
 
-use Tool\Deploy\Config;
+use Sourcerer\Tool\Code\Config;
 
 
 final class EnvironmentChain

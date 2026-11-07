@@ -11,7 +11,7 @@ fi
 
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
     echo "building image $IMAGE..." >&2
-    docker build -q -t "$IMAGE" "$ROOT/tools/cli" >/dev/null
+    docker build -q -t "$IMAGE" "$ROOT/tools/manager" >/dev/null
 fi
 
 DOCKER_ARGS=(run --rm -i --add-host=host.docker.internal:host-gateway)
@@ -53,4 +53,4 @@ if [ -d "${HOME}/.cache/composer" ]; then
     DOCKER_ARGS+=(-v "${HOME}/.cache/composer:/tmp/.cache/composer")
 fi
 
-docker "${DOCKER_ARGS[@]}" "$IMAGE" php /work/tools/cli/console.php "$@"
+docker "${DOCKER_ARGS[@]}" "$IMAGE" php /work/tools/manager/console.php "$@"

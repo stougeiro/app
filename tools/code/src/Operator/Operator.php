@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy\Operator;
+namespace Sourcerer\Tool\Code\Operator;
 
 
 final class Operator

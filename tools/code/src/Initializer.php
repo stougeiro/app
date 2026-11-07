@@ -1,9 +1,9 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy;
+namespace Sourcerer\Tool\Code;
 
 use RuntimeException;
-use Tool\Contract\OutputInterface;
+use Sourcerer\Tool\Contract\OutputInterface;
 
 
 class Initializer
@@ -11,6 +11,7 @@ class Initializer
     public function __construct(
         private readonly string $projectRoot,
         private readonly OutputInterface $output,
+        private readonly ?string $examplePath = null,
     ) {
     }
 
@@ -19,7 +20,7 @@ class Initializer
     {
         $base = rtrim($this->projectRoot, '/') .'/.deploy';
         $config = $this->projectRoot .'/deploy.json';
-        $example = $this->projectRoot .'/tools/deploy/deploy.example.json';
+        $example = $this->examplePath ?? dirname(__DIR__) .'/deploy.example.json';
 
         if (is_link($config))
         {
@@ -76,7 +77,7 @@ class Initializer
         $this->out('  place SSH keys in .deploy/ssh/ or ~/.ssh/');
         $this->out('  add per-target overrides in .deploy/override/<target>/');
         $this->out('  customize the promoted-target redirect in .deploy/stub/');
-        $this->out('  run: ./sourcerer deploy check --target=staging');
+        $this->out('  run: ./sourcerer code check --target=staging');
     }
 
 

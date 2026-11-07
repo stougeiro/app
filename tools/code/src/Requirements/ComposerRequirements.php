@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy\Requirements;
+namespace Sourcerer\Tool\Code\Requirements;
 
 use RuntimeException;
 

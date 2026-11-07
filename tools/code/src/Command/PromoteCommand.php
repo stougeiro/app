@@ -1,22 +1,22 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy\Command;
+namespace Sourcerer\Tool\Code\Command;
 
 use RuntimeException;
-use Tool\Contract\ExitCode;
-use Tool\Contract\InputInterface;
-use Tool\Contract\Option;
-use Tool\Contract\OutputInterface;
-use Tool\Deploy\Config;
-use Tool\Deploy\Deployer;
-use Tool\Deploy\Environment\EnvironmentChain;
+use Sourcerer\Tool\Contract\ExitCode;
+use Sourcerer\Tool\Contract\InputInterface;
+use Sourcerer\Tool\Contract\Option;
+use Sourcerer\Tool\Contract\OutputInterface;
+use Sourcerer\Tool\Code\Config;
+use Sourcerer\Tool\Code\Environment\EnvironmentChain;
+use Sourcerer\Tool\Code\Promotion\Promoter;
 
 
-final class PromoteCommand extends DeployCommandAbstracted
+final class PromoteCommand extends CommandAbstracted
 {
     public function name(): string
     {
-        return 'deploy promote';
+        return 'code promote';
     }
 
     public function description(): string
@@ -58,13 +58,13 @@ final class PromoteCommand extends DeployCommandAbstracted
 
         $destination = $config->target($next);
         $operator = $this->operator();
-        $sourceDeployer = new Deployer($this->projectRoot, $source, $this->shell(), $output, $operator);
-        $destinationDeployer = new Deployer($this->projectRoot, $destination, $this->shell(), $output, $operator);
-        $release = $sourceDeployer->exportRelease();
+        $sourcePromoter = new Promoter($this->projectRoot, $source, $this->shell(), $output, $operator);
+        $destinationPromoter = new Promoter($this->projectRoot, $destination, $this->shell(), $output, $operator);
+        $release = $sourcePromoter->export();
 
         try {
-            $destinationDeployer->receiveRelease($release['archive'], $release['manifest'], $source->name, $input->bool('force'));
-            $sourceDeployer->retire($destination->url, $destination->name);
+            $destinationPromoter->receive($release['archive'], $release['manifest'], $source->name, $input->bool('force'));
+            $sourcePromoter->retire($destination->url, $destination->name);
         } finally {
             if ($release['temporary']) {
                 @unlink($release['archive']);

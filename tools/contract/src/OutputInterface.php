@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Contract;
+namespace Sourcerer\Tool\Contract;
 
 
 interface OutputInterface

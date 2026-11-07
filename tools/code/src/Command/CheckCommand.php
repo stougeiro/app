@@ -1,18 +1,18 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy\Command;
+namespace Sourcerer\Tool\Code\Command;
 
-use Tool\Contract\ExitCode;
-use Tool\Contract\InputInterface;
-use Tool\Contract\Option;
-use Tool\Contract\OutputInterface;
+use Sourcerer\Tool\Contract\ExitCode;
+use Sourcerer\Tool\Contract\InputInterface;
+use Sourcerer\Tool\Contract\Option;
+use Sourcerer\Tool\Contract\OutputInterface;
 
 
-final class CheckCommand extends DeployCommandAbstracted
+final class CheckCommand extends CommandAbstracted
 {
     public function name(): string
     {
-        return 'deploy check';
+        return 'code check';
     }
 
     public function description(): string

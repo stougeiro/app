@@ -1,21 +1,21 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy\Command;
+namespace Sourcerer\Tool\Code\Command;
 
 use RuntimeException;
-use Tool\Contract\ExitCode;
-use Tool\Contract\InputInterface;
-use Tool\Contract\Option;
-use Tool\Contract\OutputInterface;
-use Tool\Deploy\Event\DeployEvent;
-use Tool\Deploy\Release\ReleaseStore;
+use Sourcerer\Tool\Contract\ExitCode;
+use Sourcerer\Tool\Contract\InputInterface;
+use Sourcerer\Tool\Contract\Option;
+use Sourcerer\Tool\Contract\OutputInterface;
+use Sourcerer\Tool\Code\Event\DeployEvent;
+use Sourcerer\Tool\Code\Release\ReleaseStore;
 
 
-final class ReleasesCommand extends DeployCommandAbstracted
+final class ReleasesCommand extends CommandAbstracted
 {
     public function name(): string
     {
-        return 'deploy releases';
+        return 'code releases';
     }
 
     public function description(): string
@@ -25,7 +25,7 @@ final class ReleasesCommand extends DeployCommandAbstracted
 
     public function usage(): string
     {
-        return 'sourcerer deploy releases [--target=<target>] | --sync';
+        return 'sourcerer code releases [--target=<target>] | --sync';
     }
 
     /** @return list<Option> */

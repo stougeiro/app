@@ -1,20 +1,20 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy\Command;
+namespace Sourcerer\Tool\Code\Command;
 
 use RuntimeException;
-use Tool\Contract\CommandInterface;
-use Tool\Contract\InputInterface;
-use Tool\Contract\OutputInterface;
-use Tool\Deploy\Config;
-use Tool\Deploy\Deployer;
-use Tool\Deploy\Operator\Operator;
-use Tool\Deploy\Release\ReleaseSync;
-use Tool\Deploy\Shell;
-use Tool\Deploy\Target;
+use Sourcerer\Tool\Contract\CommandInterface;
+use Sourcerer\Tool\Contract\InputInterface;
+use Sourcerer\Tool\Contract\OutputInterface;
+use Sourcerer\Tool\Code\Config;
+use Sourcerer\Tool\Code\Deployer;
+use Sourcerer\Tool\Code\Operator\Operator;
+use Sourcerer\Tool\Code\Release\ReleaseSync;
+use Sourcerer\Tool\Code\Shell;
+use Sourcerer\Tool\Code\Target;
 
 
-abstract class DeployCommandAbstracted implements CommandInterface
+abstract class CommandAbstracted implements CommandInterface
 {
     private ?Config $config = null;
 
@@ -45,14 +45,14 @@ abstract class DeployCommandAbstracted implements CommandInterface
 
 
 
-    /** @return list<\Tool\Contract\Option> */
+    /** @return list<\Sourcerer\Tool\Contract\Option> */
     public function options(): array
     {
         return $this->commandOptions();
     }
 
 
-    /** @return list<\Tool\Contract\Option> */
+    /** @return list<\Sourcerer\Tool\Contract\Option> */
     protected function commandOptions(): array
     {
         return [];

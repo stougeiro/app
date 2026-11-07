@@ -1,18 +1,18 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy\Command;
+namespace Sourcerer\Tool\Code\Command;
 
-use Tool\Contract\ExitCode;
-use Tool\Contract\InputInterface;
-use Tool\Contract\OutputInterface;
-use Tool\Deploy\Initializer;
+use Sourcerer\Tool\Contract\ExitCode;
+use Sourcerer\Tool\Contract\InputInterface;
+use Sourcerer\Tool\Contract\OutputInterface;
+use Sourcerer\Tool\Code\Initializer;
 
 
-final class InitCommand extends DeployCommandAbstracted
+final class InitCommand extends CommandAbstracted
 {
     public function name(): string
     {
-        return 'deploy init';
+        return 'code init';
     }
 
     public function description(): string

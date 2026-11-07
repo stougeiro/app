@@ -1,11 +1,11 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy\Release;
+namespace Sourcerer\Tool\Code\Release;
 
 use RuntimeException;
-use Tool\Deploy\Shell;
-use Tool\Deploy\Ssh;
-use Tool\Deploy\Target;
+use Sourcerer\Tool\Code\Shell;
+use Sourcerer\Tool\Code\Ssh;
+use Sourcerer\Tool\Code\Target;
 
 
 final class ArtifactVerifier

@@ -1,12 +1,12 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy\Lock;
+namespace Sourcerer\Tool\Code\Lock;
 
 use RuntimeException;
-use Tool\Deploy\Operator\Operator;
-use Tool\Deploy\Shell;
-use Tool\Deploy\Ssh;
-use Tool\Deploy\Target;
+use Sourcerer\Tool\Code\Operator\Operator;
+use Sourcerer\Tool\Code\Shell;
+use Sourcerer\Tool\Code\Ssh;
+use Sourcerer\Tool\Code\Target;
 
 
 final class TargetLock

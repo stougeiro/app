@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Deploy\Release;
+namespace Sourcerer\Tool\Code\Release;
 
 
 /**

@@ -1,10 +1,10 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Cli;
+namespace Sourcerer\Tool\Manager;
 
-use Tool\Contract\CommandInterface;
-use Tool\Contract\Option;
-use Tool\Contract\OutputInterface;
+use Sourcerer\Tool\Contract\CommandInterface;
+use Sourcerer\Tool\Contract\Option;
+use Sourcerer\Tool\Contract\OutputInterface;
 
 
 final class HelpRenderer

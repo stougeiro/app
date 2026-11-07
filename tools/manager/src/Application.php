@@ -1,12 +1,12 @@
 <?php declare(strict_types=1);
 
-namespace Tool\Cli;
+namespace Sourcerer\Tool\Manager;
 
 use InvalidArgumentException;
 use Throwable;
-use Tool\Contract\CommandInterface;
-use Tool\Contract\ExitCode;
-use Tool\Contract\Option;
+use Sourcerer\Tool\Contract\CommandInterface;
+use Sourcerer\Tool\Contract\ExitCode;
+use Sourcerer\Tool\Contract\Option;
 
 
 final class Application
