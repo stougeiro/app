@@ -1,8 +1,8 @@
 <?php declare(strict_types=1);
 
-use App\Core\Log\PhpErrorLog;
-
 use Sourcerer\Path;
+
+use App\Core\Log\PhpErrorLog;
 
 
 date_default_timezone_set('America/Sao_Paulo');
