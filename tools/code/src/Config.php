@@ -11,11 +11,12 @@ use Sourcerer\Tool\Code\Operator\Operator;
 
 class Config
 {
-    /** @var list<string> */
-    public const TARGETS = ['development', 'staging', 'production', 'demonstration'];
-
-    /** @var list<string> */
-    public const PROMOTION = ['development', 'staging', 'production'];
+    /**
+     * Ordered deploy targets. Promotion follows this exact order.
+     *
+     * @var list<string>
+     */
+    public const TARGETS = ['development', 'staging', 'production'];
 
     /** @var array<string, Target> */
     private array $targets = [];

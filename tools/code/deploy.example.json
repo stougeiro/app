@@ -23,13 +23,6 @@
     }
   },
   "targets": {
-    "demonstration": {
-      "root": {
-        "dir": "demo"
-      },
-      "webroot": "/home/deploy/domains/example.com/public_html/demo",
-      "url": "https://demo.example.com"
-    },
     "development": {
       "root": {
         "dir": "dev"

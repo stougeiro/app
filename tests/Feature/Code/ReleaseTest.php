@@ -61,9 +61,7 @@ test('environment chain never skips stages', function () {
         ->and(EnvironmentChain::next('staging', $all))->toBe('production')
         ->and(EnvironmentChain::next('production', $all))->toBeNull()
         ->and(EnvironmentChain::next('development', ['development', 'production']))->toBe('production')
-        ->and(EnvironmentChain::next('development', ['development']))->toBeNull()
-        ->and(EnvironmentChain::next('demonstration', $all))->toBeNull()
-        ->and(EnvironmentChain::next('staging', ['staging', 'production', 'demonstration']))->toBe('production');
+        ->and(EnvironmentChain::next('development', ['development']))->toBeNull();
 });
 
 

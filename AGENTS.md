@@ -115,6 +115,9 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing code.
 - `deploy.json` must declare `operator.name`; release/event identity comes from
   it.
 - `code releases` reads the local mirror; `--sync` mirrors all targets.
+- Valid targets are `development`, `staging` and `production`. Do not add
+  targets for environments that run a different codebase (for example a
+  demonstration or an API); those belong to their own repository and pipeline.
 - The Code tool is repository tooling. Do not require it from `application/`,
   providers or modules.
 - Do not upload `tools/code/` to the server. A deploy transfers only

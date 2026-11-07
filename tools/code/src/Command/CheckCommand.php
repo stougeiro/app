@@ -24,7 +24,7 @@ final class CheckCommand extends CommandAbstracted
     protected function commandOptions(): array
     {
         return [
-            new Option('target', 'Target to operate on (development, staging, production, demonstration)', true, null, true, 'target'),
+            new Option('target', 'Target to operate on (development, staging, production)', true, null, true, 'target'),
         ];
     }
 

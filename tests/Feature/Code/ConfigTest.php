@@ -600,8 +600,8 @@ test('rejects invalid release retention', function () {
 });
 
 
-test('accepts the demonstration target outside the promotion chain', function () {
-    $config = Config::load(deployConfigFile([
+test('rejects targets outside the deploy flow', function () {
+    expect(fn () => Config::load(deployConfigFile([
         'targets' => [
             'demonstration' => deployConfigTarget([
                 'root' => deployRoot('/srv/demo'),
@@ -609,8 +609,5 @@ test('accepts the demonstration target outside the promotion chain', function ()
                 'url' => 'https://demo.example.com',
             ]),
         ],
-    ]));
-
-    expect($config->target('demonstration')->name)->toBe('demonstration')
-        ->and(Config::PROMOTION)->not->toContain('demonstration');
+    ])))->toThrow(RuntimeException::class, "invalid target 'demonstration'");
 });

@@ -492,27 +492,3 @@ test('releases json option is no longer accepted', function () {
     expect($result['code'])->toBe(ExitCode::Invalid->value)
         ->and($result['stderr'])->toContain('unknown option: --json');
 });
-
-
-
-test('promote rejects demonstration as source', function () {
-    $root = DeployFixtures::workspace();
-    file_put_contents($root .'/deploy.json', json_encode([
-        'operator' => ['name' => 'Test Operator'],
-        'targets' => [
-            'demonstration' => [
-                'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
-                'root' => ['base' => '/srv/demo/app'],
-                'webroot' => '/srv/demo/public_html',
-                'url' => 'https://demo.example.com',
-            ],
-        ],
-    ], JSON_THROW_ON_ERROR));
-
-    $command = new \Sourcerer\Tool\Code\Command\PromoteCommand($root, DeployFixtures::shell());
-
-    expect(fn () => $command->run(
-        deployCommandInput($command, ['--from=demonstration']),
-        DeployFixtures::output(),
-    ))->toThrow(RuntimeException::class, 'not promotable');
-});

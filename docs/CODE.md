@@ -164,11 +164,11 @@ Deploy:
 ## Targets
 
 `deploy.json` has `defaults` and `targets`. Valid target names are
-`development`, `staging`, `production` and `demonstration`.
+`development`, `staging` and `production`.
 
-`demonstration` is optional and outside the promotion chain. It is deployed
-only with `push`, `check`, `rollback` and inspected with `releases`; it cannot
-be promoted or receive a promotion.
+A demonstration, API or any other environment that runs a different codebase is
+not a target of this repository. It must have its own deploy configuration and
+its own pipeline.
 
 ```json
 {
@@ -198,13 +198,6 @@ be promoted or receive a promotion.
       },
       "webroot": "/home/deploy/domains/example.com/public_html/staging",
       "url": "https://staging.example.com"
-    },
-    "demonstration": {
-      "root": {
-        "dir": "demo"
-      },
-      "webroot": "/home/deploy/domains/example.com/public_html/demo",
-      "url": "https://demo.example.com"
     },
     "production": {
       "webroot": "/home/deploy/domains/example.com/public_html",

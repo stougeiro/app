@@ -14,7 +14,7 @@ final class EnvironmentChain
     {
         $started = false;
 
-        foreach (Config::PROMOTION as $environment) {
+        foreach (Config::TARGETS as $environment) {
             if ($environment === $current) {
                 $started = true;
                 continue;

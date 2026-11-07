@@ -44,10 +44,6 @@ final class PromoteCommand extends CommandAbstracted
         $config = Config::load($this->projectRoot .'/deploy.json');
         $source = $config->target($from);
 
-        if ( ! in_array($source->name, Config::PROMOTION, true)) {
-            throw new RuntimeException("target '{$source->name}' is not promotable");
-        }
-
         $next = EnvironmentChain::next($from, $config->names());
 
         if ($next === null) {
