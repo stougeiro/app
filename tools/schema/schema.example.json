@@ -1,0 +1,47 @@
+{
+  "databases": {
+    "default": {
+      "driver": "sqlite",
+      "version": "3",
+      "targets": {
+        "local": {
+          "transport": "local",
+          "database": "application/storage/database.sqlite"
+        },
+        "development": {
+          "transport": "ssh",
+          "database": "/home/example/domains/example.com/dev/database.sqlite",
+          "ssh": {
+            "host": "example.com",
+            "port": 22,
+            "user": "deploy",
+            "identity": ".schema/ssh/deploy_ed25519",
+            "php_binary": "/opt/alt/php82/usr/bin/php"
+          }
+        },
+        "staging": {
+          "transport": "ssh",
+          "database": "/home/example/domains/example.com/staging/database.sqlite",
+          "ssh": {
+            "host": "example.com",
+            "port": 22,
+            "user": "deploy",
+            "identity": ".schema/ssh/deploy_ed25519",
+            "php_binary": "/opt/alt/php82/usr/bin/php"
+          }
+        },
+        "production": {
+          "transport": "ssh",
+          "database": "/home/example/domains/example.com/database.sqlite",
+          "ssh": {
+            "host": "example.com",
+            "port": 22,
+            "user": "deploy",
+            "identity": ".schema/ssh/deploy_ed25519",
+            "php_binary": "/opt/alt/php82/usr/bin/php"
+          }
+        }
+      }
+    }
+  }
+}

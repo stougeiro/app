@@ -25,6 +25,7 @@ shared servers.
 - [Architecture](docs/ARCHITECTURE.md): boundaries, dependency direction and
   where each kind of code belongs.
 - [Code tool](docs/CODE.md): deployment configuration, commands and operations.
+- [Schema tool](docs/SCHEMA.md): structural database state versioning.
 - [AGENTS](AGENTS.md): operational rules for agents and contributors.
 
 ## Features
@@ -45,6 +46,8 @@ shared servers.
   the image.
 - **Code tool**: repeatable SSH deploys with per-target layout, overrides,
   maintenance mode, automatic backups and rollback.
+- **Schema tool**: structural database state versioning for SQLite, with
+  immutable releases and SQL artifacts.
 - **Quality tooling**: PHPStan Level 9 and a Pest suite.
 
 ## Requirements
@@ -83,12 +86,13 @@ composer install --no-dev --optimize-autoloader
 │   ├── module/       application modules
 │   ├── provider/     service providers
 │   └── storage/      cache, logs, sessions, uploads and temporary files
-├── docs/             architecture and Code tool reference
+├── docs/             architecture, Code and Schema reference
 ├── tests/            Pest tests
 ├── tools/
 │   ├── contract/     shared tool contracts
 │   ├── manager/      CLI runtime, registry and Dockerfile
-│   └── code/         Code tool source and example
+│   ├── code/         Code tool source and example
+│   └── schema/       Schema tool source and example
 ├── .deploy/          local deploy state and secrets (not versioned)
 ├── public/           document root
 ├── vendor/           Composer dependencies
@@ -191,6 +195,23 @@ per-target overrides, maintenance mode, remote backups and rollback.
 See [docs/CODE.md](docs/CODE.md) for configuration, commands and operational
 details.
 
+## Schema tool
+
+The Schema tool versions database structure without creating control tables in
+the database.
+
+```bash
+./sourcerer schema init
+./sourcerer schema status
+./sourcerer schema status --target=local
+```
+
+It captures Genesis, maintains immutable releases, and will generate
+`release.sql` and `migration.sql` artifacts. Triggers, procedures and functions
+are deliberately unsupported.
+
+See [docs/SCHEMA.md](docs/SCHEMA.md) for configuration and the complete model.
+
 ## Shared hosting
 
 The production deployment is a normal PHP application. Docker is not required.
@@ -223,6 +244,7 @@ composer stan
 composer pest
 composer cover:app
 composer cover:code
+composer cover:schema
 ```
 
 Run the suite as a non-root user. The permission tests exercise real filesystem
@@ -230,10 +252,10 @@ behavior and must not be skipped.
 
 The test suite covers the application bootstrap, module rendering, error pages,
 log classification, daily PHP error log configuration, security primitives,
-maintenance/fallback entrypoint behavior and the Code tool.
+maintenance/fallback entrypoint behavior, the Code tool and the Schema tool.
 
-Code tool coverage is measured separately so the application coverage scope
-stays unchanged.
+Tool coverage is measured separately so the application coverage scope stays
+unchanged.
 
 ## Why?
 

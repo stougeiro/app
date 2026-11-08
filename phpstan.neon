@@ -9,6 +9,7 @@ parameters:
         - public
         - tools/contract/src
         - tools/code/src
+        - tools/schema/src
         - tools/manager/src
         - tools/manager/console.php
         - tools/manager/tools.php

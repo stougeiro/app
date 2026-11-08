@@ -46,6 +46,7 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing code.
 | Shared tool contracts | `tools/contract` |
 | CLI runtime | `tools/manager` |
 | Code tool source | `tools/code` |
+| Schema tool source | `tools/schema` |
 | Tool entrypoint | `./sourcerer` |
 | Deploy config/state | `deploy.json`, `.deploy` (local only) |
 
@@ -128,12 +129,25 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing code.
 - Use `./sourcerer code --help` to validate the CLI.
 - Docker is the only local runtime requirement for `./sourcerer`.
 
+## Schema tool
+
+- Read [docs/SCHEMA.md](docs/SCHEMA.md) before using or configuring the Schema tool.
+- Schema versions database structure only: tables, columns, keys, indexes, views and sequences.
+- Do not add support for triggers, procedures or functions. They belong to the application domain.
+- Schema must refuse to operate when unsupported objects are present.
+- `schema.json` is independent from `application/config/database.php`; do not import it.
+- Local changes happen in the `local` target. Environment targets only receive releases.
+- `update` only accepts checkpointed releases.
+- `rollback` creates a new forward-only release; never rewrite history.
+- Keep Schema behavior covered by `tests/Feature/Schema`.
+
 ## Tools boundary
 
 - Namespaces:
   - `Sourcerer\Tool\Contract` in `tools/contract/src`;
   - `Sourcerer\Tool\Manager` in `tools/manager/src`;
-  - `Sourcerer\Tool\Code` in `tools/code/src`.
+  - `Sourcerer\Tool\Code` in `tools/code/src`;
+  - `Sourcerer\Tool\Schema` in `tools/schema/src`.
 - `tools/manager/console.php` owns autoload, the tool registry and the project
   root.
 - Every tool implements `Sourcerer\Tool\Contract\ToolInterface` and receives
@@ -166,6 +180,7 @@ composer validate --strict
 composer stan
 composer pest
 composer cover:code
+composer cover:schema
 ```
 
 Run the test suite as a non-root user. Filesystem and permission-sensitive

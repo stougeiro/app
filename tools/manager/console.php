@@ -10,6 +10,7 @@ spl_autoload_register(static function (string $class) use ($toolsRoot): void {
     $prefixes = [
         'Sourcerer\\Tool\\Contract\\' => $toolsRoot .'/contract/src/',
         'Sourcerer\\Tool\\Code\\' => $toolsRoot .'/code/src/',
+        'Sourcerer\\Tool\\Schema\\' => $toolsRoot .'/schema/src/',
         'Sourcerer\\Tool\\Manager\\' => $toolsRoot .'/manager/src/',
     ];
 

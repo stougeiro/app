@@ -58,3 +58,7 @@ coverage/
 # Deploy
 /deploy.json
 /.deploy/
+
+# Schema
+/schema.json
+/.schema/

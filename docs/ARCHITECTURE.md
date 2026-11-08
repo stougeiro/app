@@ -76,6 +76,7 @@ Nothing under `application/` should be exposed by the web server.
 | Shared tool contracts | `tools/contract` |
 | Pluggable CLI runtime | `tools/manager` |
 | Code tool source | `tools/code` |
+| Schema tool source | `tools/schema` |
 | Tool entrypoint | `./sourcerer` |
 | Deploy configuration/state | `deploy.json`, `.deploy` (local only) |
 
@@ -306,7 +307,8 @@ Tests must verify observable behavior:
 - log classification;
 - security headers;
 - fallback behavior where applicable;
-- Code tool configuration, transfer isolation, backups and rollback.
+- Code tool configuration, transfer isolation, backups and rollback;
+- Schema tool inspection, hashing, Genesis and artifact generation.
 
 Do not test private implementation details or internal call order unless that
 order is the behavior being protected.
@@ -350,14 +352,15 @@ tools/manager
 tools/contract
     ↑
 tools/code
+tools/schema
 ```
 
 The rules are:
 
 - `tools/contract` holds shared tool contracts (`Sourcerer\Tool\Contract`);
 - `tools/manager` holds the CLI runtime (`Sourcerer\Tool\Manager`);
-- each tool lives in `tools/<tool>`; `tools/code` is the first one
-  (`Sourcerer\Tool\Code`);
+- each tool lives in `tools/<tool>`; `tools/code` (`Sourcerer\Tool\Code`) and
+  `tools/schema` (`Sourcerer\Tool\Schema`) are the current tools;
 - tools are registered explicitly in `tools/manager/tools.php`;
 - tools receive the project root explicitly through
   `ToolInterface::commands(string $projectRoot)`;
@@ -388,7 +391,8 @@ Tool changes must follow the `tools/contract`, `tools/manager` and
 `tools/<tool>` boundaries. Application work must not refactor, move, rename or
 opportunistically "fix" tooling.
 
-See [Code tool](CODE.md) for configuration and command reference.
+See [Code tool](CODE.md) and [Schema tool](SCHEMA.md) for configuration and
+command reference.
 
 ## Anti-patterns
 
