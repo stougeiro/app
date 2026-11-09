@@ -23,7 +23,15 @@ final class FileSystem
             throw new RuntimeException("not a directory: {$path}");
         }
 
-        self::guard(static fn () => mkdir($path, $mode, true));
+        try {
+            self::guard(static fn () => mkdir($path, $mode, true));
+        } catch (Throwable $error) {
+            if (is_dir($path)) {
+                return;
+            }
+
+            throw new RuntimeException("could not create directory: {$path}", 0, $error);
+        }
     }
 
 
