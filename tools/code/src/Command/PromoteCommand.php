@@ -13,7 +13,7 @@ use Sourcerer\Tool\Code\Promotion\Promoter;
 use Sourcerer\Tool\Support\FileSystem;
 
 
-final class PromoteCommand extends CommandAbstracted
+final class PromoteCommand extends CommandAbstract
 {
     public function name(): string
     {

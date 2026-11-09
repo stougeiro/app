@@ -9,7 +9,7 @@ use Sourcerer\Tool\Schema\Config;
 use Sourcerer\Tool\Schema\Config\DatabaseConfig;
 
 
-abstract class CommandAbstracted implements CommandInterface
+abstract class CommandAbstract implements CommandInterface
 {
     private ?Config $config = null;
 

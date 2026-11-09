@@ -9,7 +9,7 @@ use Sourcerer\Tool\Contract\Option;
 use Sourcerer\Tool\Contract\OutputInterface;
 
 
-final class RollbackCommand extends CommandAbstracted
+final class RollbackCommand extends CommandAbstract
 {
     public function name(): string
     {

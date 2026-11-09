@@ -8,7 +8,7 @@ use Sourcerer\Tool\Contract\Option;
 use Sourcerer\Tool\Contract\OutputInterface;
 
 
-final class PushCommand extends CommandAbstracted
+final class PushCommand extends CommandAbstract
 {
     public function name(): string
     {

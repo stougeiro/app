@@ -14,7 +14,7 @@ use Sourcerer\Tool\Schema\Driver\SqliteDriver;
 use Sourcerer\Tool\Schema\Repository\SchemaRepository;
 
 
-final class StatusCommand extends CommandAbstracted
+final class StatusCommand extends CommandAbstract
 {
     public function name(): string
     {

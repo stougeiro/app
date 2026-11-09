@@ -14,7 +14,7 @@ use Sourcerer\Tool\Schema\Repository\SchemaRepository;
 use Sourcerer\Tool\Schema\Sql\SqliteSqlGenerator;
 
 
-final class InitCommand extends CommandAbstracted
+final class InitCommand extends CommandAbstract
 {
     public function name(): string
     {

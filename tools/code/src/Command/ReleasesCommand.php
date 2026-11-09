@@ -11,7 +11,7 @@ use Sourcerer\Tool\Code\Event\DeployEvent;
 use Sourcerer\Tool\Code\Release\ReleaseStore;
 
 
-final class ReleasesCommand extends CommandAbstracted
+final class ReleasesCommand extends CommandAbstract
 {
     public function name(): string
     {

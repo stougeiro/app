@@ -15,7 +15,7 @@ use Sourcerer\Tool\Code\Shell;
 use Sourcerer\Tool\Code\Target;
 
 
-abstract class CommandAbstracted implements CommandInterface
+abstract class CommandAbstract implements CommandInterface
 {
     private ?Config $config = null;
 
