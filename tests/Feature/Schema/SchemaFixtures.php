@@ -40,8 +40,10 @@ final class SchemaFixtures
             throw new RuntimeException('could not create schema workspace');
         }
 
+        mkdir($root .'/.sourcerer/schema', 0755, true);
+
         file_put_contents(
-            $root .'/schema.json',
+            $root .'/.sourcerer/schema/config.json',
             json_encode(self::config($database ?? 'storage/database.sqlite'), JSON_THROW_ON_ERROR),
         );
 

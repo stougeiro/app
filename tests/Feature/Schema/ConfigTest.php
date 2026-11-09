@@ -7,7 +7,7 @@ use Tests\Feature\Schema\SchemaFixtures;
 function schemaConfigFile(array $data): string
 {
     $root = SchemaFixtures::workspace();
-    file_put_contents($root .'/schema.json', json_encode($data, JSON_THROW_ON_ERROR));
+    file_put_contents($root .'/.sourcerer/schema/config.json', json_encode($data, JSON_THROW_ON_ERROR));
 
     return $root;
 }
@@ -28,7 +28,7 @@ test('rejects missing schema config', function () {
     mkdir($root, 0755, true);
 
     expect(fn () => Config::load($root))
-        ->toThrow(RuntimeException::class, 'schema.json not found');
+        ->toThrow(RuntimeException::class, '.sourcerer/schema/config.json not found');
 });
 
 

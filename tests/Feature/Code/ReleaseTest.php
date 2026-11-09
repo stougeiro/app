@@ -79,10 +79,10 @@ test('redirect stub falls back to tool defaults', function () {
 
 test('redirect stub uses custom files and escapes the url', function () {
     $root = sys_get_temp_dir() .'/deploy-stub-'. bin2hex(random_bytes(6));
-    mkdir($root .'/.deploy/stub', 0700, true);
+    mkdir($root .'/.sourcerer/code/stub', 0700, true);
 
-    file_put_contents($root .'/.deploy/stub/index.php', "<?php header('Location: %url%'); exit;\n");
-    file_put_contents($root .'/.deploy/stub/.htaccess', "custom\n");
+    file_put_contents($root .'/.sourcerer/code/stub/index.php', "<?php header('Location: %url%'); exit;\n");
+    file_put_contents($root .'/.sourcerer/code/stub/.htaccess', "custom\n");
 
     $stub = (new RedirectStub($root))->render("https://example.com/path'quote");
 
@@ -93,9 +93,9 @@ test('redirect stub uses custom files and escapes the url', function () {
 
 test('redirect stub requires the url placeholder', function () {
     $root = sys_get_temp_dir() .'/deploy-stub-'. bin2hex(random_bytes(6));
-    mkdir($root .'/.deploy/stub', 0700, true);
-    file_put_contents($root .'/.deploy/stub/index.php', '<?php exit;');
-    file_put_contents($root .'/.deploy/stub/.htaccess', '');
+    mkdir($root .'/.sourcerer/code/stub', 0700, true);
+    file_put_contents($root .'/.sourcerer/code/stub/index.php', '<?php exit;');
+    file_put_contents($root .'/.sourcerer/code/stub/.htaccess', '');
 
     expect(fn () => (new RedirectStub($root))->render('https://example.com'))
         ->toThrow(RuntimeException::class, 'must contain %url%');

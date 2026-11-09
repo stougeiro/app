@@ -7,7 +7,6 @@ use Sourcerer\Tool\Manager\Input;
 use Sourcerer\Tool\Contract\CommandInterface;
 use Sourcerer\Tool\Contract\ExitCode;
 use Sourcerer\Tool\Code\Command\CheckCommand;
-use Sourcerer\Tool\Code\Command\InitCommand;
 use Sourcerer\Tool\Code\Command\PushCommand;
 use Sourcerer\Tool\Code\Command\RollbackCommand;
 
@@ -20,8 +19,10 @@ function deployCommandInput(CommandInterface $command, array $tokens): Input
 
 function deployCommandWorkspace(string $root): void
 {
-    file_put_contents($root .'/deploy.json', json_encode([
-        'operator' => ['name' => 'Test Operator', 'email' => 'test@example.com'],
+    if ( ! is_dir($root .'/.sourcerer/code')) {
+        mkdir($root .'/.sourcerer/code', 0700, true);
+    }
+    file_put_contents($root .'/.sourcerer/code/config.json', json_encode([
         'targets' => [
             'staging' => [
                 'ssh' => ['host' => 'staging.example.com', 'user' => 'deploy'],
@@ -40,19 +41,6 @@ function deployCommandRead(mixed $stream): string
 
     return (string) stream_get_contents($stream);
 }
-
-
-test('init command creates the deploy layout', function () {
-    $root = sys_get_temp_dir() .'/deploy-command-init-'. bin2hex(random_bytes(6));
-    mkdir($root, 0700, true);
-
-    $command = new InitCommand($root);
-
-    expect($command->run(deployCommandInput($command, []), DeployFixtures::output()))
-        ->toBe(ExitCode::Success->value)
-        ->and(is_dir($root .'/.deploy/ssh'))->toBeTrue()
-        ->and(is_file($root .'/deploy.json'))->toBeTrue();
-});
 
 
 test('check command uses the injected shell and target option', function () {
@@ -125,7 +113,6 @@ test('code tool registers its commands', function () {
     $tool = new Sourcerer\Tool\Code\CodeTool();
 
     expect(array_keys($tool->commands(sys_get_temp_dir())))->toBe([
-        'code init',
         'code check',
         'code push',
         'code promote',
@@ -139,8 +126,10 @@ function deployPromoteWorkspace(): string
 {
     $root = DeployFixtures::workspace();
 
-    file_put_contents($root .'/deploy.json', json_encode([
-        'operator' => ['name' => 'Test Operator', 'email' => 'test@example.com'],
+    if ( ! is_dir($root .'/.sourcerer/code')) {
+        mkdir($root .'/.sourcerer/code', 0700, true);
+    }
+    file_put_contents($root .'/.sourcerer/code/config.json', json_encode([
         'targets' => [
             'development' => [
                 'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
@@ -325,7 +314,7 @@ function deployReleasesWorkspace(): string
         ),
     );
 
-    $events = $root .'/.deploy/events';
+    $events = $root .'/.sourcerer/code/events';
     mkdir($events, 0700, true);
 
     foreach ([

@@ -63,7 +63,7 @@ function deployConfigWithTarget(array $target): string
 
 test('loads defaults, explicit root and applies deep merge', function () {
     $config = Config::load(deployConfigFile([
-        'defaults' => [
+        'global' => [
             'ssh' => [
                 'port' => 2222,
                 'identity' => '~/.ssh/id_ed25519',
@@ -117,7 +117,7 @@ test('builds the root from base and dir', function () {
 
 test('merges a target root dir with the default root base', function () {
     $config = Config::load(deployConfigFile([
-        'defaults' => [
+        'global' => [
             'root' => deployRoot('/srv/domain'),
         ],
         'targets' => [
@@ -157,7 +157,7 @@ test('rejects invalid root dir', function () {
 
 test('applies per-target keep values', function () {
     $config = Config::load(deployConfigFile([
-        'defaults' => ['keep' => ['backup' => 3]],
+        'global' => ['keep' => ['backup' => 3]],
         'targets' => [
             'production' => deployConfigTarget([
                 'keep' => ['backup' => 10],
@@ -270,11 +270,11 @@ test('rejects a preserve item that is not a string', function () {
 
 test('resolves a relative ssh identity against the config root', function () {
     $file = deployConfigWithTarget(deployConfigTarget([
-        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'identity' => '.deploy/ssh/key'],
+        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'identity' => '.sourcerer/code/ssh/key'],
     ]));
 
     expect(Config::load($file)->target('staging')->sshIdentity)
-        ->toBe(dirname($file) .'/.deploy/ssh/key');
+        ->toBe(dirname($file) .'/.sourcerer/code/ssh/key');
 });
 
 
@@ -463,9 +463,9 @@ test('rejects a config without targets', function () {
 
 test('rejects non-object defaults', function () {
     expect(fn () => Config::load(deployConfigFile([
-        'defaults' => 'invalid',
+        'global' => 'invalid',
         'targets' => ['staging' => deployConfigTarget()],
-    ])))->toThrow(RuntimeException::class, "'defaults' must be an object");
+    ])))->toThrow(RuntimeException::class, "'global' must be an object");
 });
 
 
@@ -544,35 +544,6 @@ test('rejects root-level paths', function () {
     ]))))->toThrow(RuntimeException::class, "root-level 'webroot'");
 });
 
-
-test('parses the deploy operator', function () {
-    $config = Config::load(deployConfigFile([
-        'operator' => ['name' => 'Sidney', 'email' => 'sidney@example.com'],
-        'targets' => ['staging' => deployConfigTarget()],
-    ]));
-
-    expect($config->requireOperator()->name)->toBe('Sidney')
-        ->and($config->requireOperator()->email)->toBe('sidney@example.com');
-});
-
-
-test('operator is optional until required', function () {
-    $config = Config::load(deployConfigFile([
-        'targets' => ['staging' => deployConfigTarget()],
-    ]));
-
-    expect($config->operator())->toBeNull()
-        ->and(fn () => $config->requireOperator())
-        ->toThrow(RuntimeException::class, 'operator.name is required');
-});
-
-
-test('rejects an operator without a name', function () {
-    expect(fn () => Config::load(deployConfigFile([
-        'operator' => ['email' => 'sidney@example.com'],
-        'targets' => ['staging' => deployConfigTarget()],
-    ])))->toThrow(RuntimeException::class, "operator.name");
-});
 
 
 test('parses release and event retention settings', function () {

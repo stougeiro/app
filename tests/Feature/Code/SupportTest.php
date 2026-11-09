@@ -1,12 +1,12 @@
 <?php declare(strict_types=1);
 
-use Sourcerer\Tool\Code\Support\FileSystem;
+use Sourcerer\Tool\Support\FileSystem;
 use Sourcerer\Tool\Code\Support\Paths;
 
 
 test('override resolves the local target tree', function () {
     expect(Paths::override('/srv/app/', 'staging', 'public'))
-        ->toBe('/srv/app/.deploy/override/staging/public');
+        ->toBe('/srv/app/.sourcerer/code/override/staging/public');
 });
 
 

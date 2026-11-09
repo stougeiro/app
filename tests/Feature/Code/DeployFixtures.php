@@ -5,7 +5,7 @@ namespace Tests\Feature\Code;
 use RuntimeException;
 use Sourcerer\Tool\Manager\Output;
 use Sourcerer\Tool\Code\ShellResult;
-use Sourcerer\Tool\Code\Operator\Operator;
+use Sourcerer\Tool\Contract\Operator;
 use Sourcerer\Tool\Code\Target;
 
 
@@ -71,19 +71,23 @@ final class DeployFixtures
         foreach ([
             'application/Config',
             'public/assets',
-            '.deploy/override/staging/application',
-            '.deploy/override/staging/public',
+            '.sourcerer/code/override/staging/application',
+            '.sourcerer/code/override/staging/public',
         ] as $directory) {
             mkdir($root .'/'. $directory, 0700, true);
         }
 
+        file_put_contents(
+            $root .'/.sourcerer/operator.json',
+            json_encode(['name' => 'Test Operator', 'email' => 'test@example.com'], JSON_THROW_ON_ERROR),
+        );
         file_put_contents($root .'/composer.json', '{}');
         file_put_contents($root .'/composer.lock', '{}');
         file_put_contents($root .'/application/Config/app.php', '<?php return [];');
         file_put_contents($root .'/public/index.php', '<?php');
         file_put_contents($root .'/public/assets/app.css', 'body{}');
-        file_put_contents($root .'/.deploy/override/staging/public/.htaccess', 'Options -Indexes');
-        file_put_contents($root .'/.deploy/override/staging/application/env.json', '{"environment":"staging"}');
+        file_put_contents($root .'/.sourcerer/code/override/staging/public/.htaccess', 'Options -Indexes');
+        file_put_contents($root .'/.sourcerer/code/override/staging/application/env.json', '{"environment":"staging"}');
 
         return $root;
     }

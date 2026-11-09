@@ -13,8 +13,8 @@ function deployDeployerWorkspace(): string
     foreach ([
         'application/Config',
         'public/assets',
-        '.deploy/override/staging/application',
-        '.deploy/override/staging/public',
+        '.sourcerer/code/override/staging/application',
+        '.sourcerer/code/override/staging/public',
     ] as $directory)
     {
         mkdir($root .'/'. $directory, 0700, true);
@@ -25,8 +25,8 @@ function deployDeployerWorkspace(): string
     file_put_contents($root .'/application/Config/app.php', '<?php return [];');
     file_put_contents($root .'/public/index.php', '<?php');
     file_put_contents($root .'/public/assets/app.css', 'body{}');
-    file_put_contents($root .'/.deploy/override/staging/public/.htaccess', 'Options -Indexes');
-    file_put_contents($root .'/.deploy/override/staging/application/env.json', '{"environment":"staging"}');
+    file_put_contents($root .'/.sourcerer/code/override/staging/public/.htaccess', 'Options -Indexes');
+    file_put_contents($root .'/.sourcerer/code/override/staging/application/env.json', '{"environment":"staging"}');
 
     return $root;
 }
@@ -220,7 +220,7 @@ test('check does not create a root when dir is omitted', function () {
 
 test('push requires a local env override', function () {
     $root = deployDeployerWorkspace();
-    unlink($root .'/.deploy/override/staging/application/env.json');
+    unlink($root .'/.sourcerer/code/override/staging/application/env.json');
     $shell = deployDeployerShell();
     $deployer = deployTestDeployer($root, DeployFixtures::target(), $shell);
 
@@ -247,8 +247,8 @@ test('push creates a backup, transfers the build and applies overrides', functio
         ->toContain('composer install')
         ->toContain('storage/upload')
         ->toContain('/public/')
-        ->toContain('.deploy/override/staging/application/')
-        ->toContain('.deploy/override/staging/public/');
+        ->toContain('.sourcerer/code/override/staging/application/')
+        ->toContain('.sourcerer/code/override/staging/public/');
 });
 
 
@@ -331,7 +331,7 @@ test('push falls back to tar and applies tar overrides', function () {
         ->toContain('scp')
         ->toContain('incoming-root')
         ->toContain('incoming-webroot')
-        ->toContain('.deploy/override/staging/public');
+        ->toContain('.sourcerer/code/override/staging/public');
 });
 
 
@@ -511,9 +511,9 @@ test('push stores a release manifest, event and current marker', function () {
 
     $deployer->push();
 
-    $archives = glob($root .'/.deploy/releases/*/release.tar.gz');
-    $manifests = glob($root .'/.deploy/releases/*/manifest.json');
-    $events = glob($root .'/.deploy/events/*.json');
+    $archives = glob($root .'/.sourcerer/code/releases/*/release.tar.gz');
+    $manifests = glob($root .'/.sourcerer/code/releases/*/manifest.json');
+    $events = glob($root .'/.sourcerer/code/events/*.json');
     $calls = DeployFixtures::calls($shell);
     $manifestData = json_decode((string) file_get_contents($manifests[0]), true);
     $eventData = json_decode((string) file_get_contents($events[0]), true);
@@ -526,7 +526,7 @@ test('push stores a release manifest, event and current marker', function () {
         ->and($calls)->toContain('storage.tar.gz')
         ->and($calls)->toContain('current.json')
         ->and($calls)->toContain('release.tar.gz')
-        ->and(is_file($root .'/.deploy/targets/staging.json'))->toBeTrue()
+        ->and(is_file($root .'/.sourcerer/code/targets/staging.json'))->toBeTrue()
         ->and($calls)->toContain('--exclude=application/env.json')
         ->and($calls)->not->toContain('backups/staging')
         ->and($manifestData['artifactHash'] ?? null)->toBe('sha256:'. hash('sha256', ''))
@@ -547,6 +547,6 @@ test('rollback restores storage when the backup contains it', function () {
 
     expect(DeployFixtures::calls($shell))
         ->toContain('storage.tar.gz')
-        ->toContain('.deploy/override/staging/application/')
+        ->toContain('.sourcerer/code/override/staging/application/')
         ->toContain('application/env.json');
 });
