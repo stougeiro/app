@@ -15,7 +15,7 @@
             "host": "example.com",
             "port": 22,
             "user": "deploy",
-            "identity": ".schema/ssh/deploy_ed25519",
+            "identity": ".sourcerer/schema/ssh/deploy_ed25519",
             "php_binary": "/opt/alt/php82/usr/bin/php"
           }
         },
@@ -26,7 +26,7 @@
             "host": "example.com",
             "port": 22,
             "user": "deploy",
-            "identity": ".schema/ssh/deploy_ed25519",
+            "identity": ".sourcerer/schema/ssh/deploy_ed25519",
             "php_binary": "/opt/alt/php82/usr/bin/php"
           }
         },
@@ -37,7 +37,7 @@
             "host": "example.com",
             "port": 22,
             "user": "deploy",
-            "identity": ".schema/ssh/deploy_ed25519",
+            "identity": ".sourcerer/schema/ssh/deploy_ed25519",
             "php_binary": "/opt/alt/php82/usr/bin/php"
           }
         }

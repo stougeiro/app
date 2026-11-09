@@ -6,7 +6,7 @@ use Sourcerer\Tool\Contract\OutputInterface;
 use Sourcerer\Tool\Code\Remote\Scp;
 use Sourcerer\Tool\Code\Shell;
 use Sourcerer\Tool\Code\Ssh;
-use Sourcerer\Tool\Code\Support\FileSystem;
+use Sourcerer\Tool\Support\FileSystem;
 use Sourcerer\Tool\Code\Support\Paths;
 use Sourcerer\Tool\Code\Target;
 
@@ -169,14 +169,12 @@ final class Transfer
         }
         finally
         {
-            if (is_file($rootArchive))
-            {
-                @unlink($rootArchive);
+            if ( ! FileSystem::tryDelete($rootArchive)) {
+                $this->out('warning: could not remove temporary root archive');
             }
 
-            if (is_file($webrootArchive))
-            {
-                @unlink($webrootArchive);
+            if ( ! FileSystem::tryDelete($webrootArchive)) {
+                $this->out('warning: could not remove temporary webroot archive');
             }
         }
     }
@@ -200,9 +198,8 @@ final class Transfer
         }
         finally
         {
-            if (is_file($archive))
-            {
-                @unlink($archive);
+            if ( ! FileSystem::tryDelete($archive)) {
+                $this->out('warning: could not remove temporary archive');
             }
         }
     }

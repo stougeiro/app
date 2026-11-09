@@ -7,6 +7,7 @@ use RuntimeException;
 use Sourcerer\Tool\Schema\Canonical\CanonicalJson;
 use Sourcerer\Tool\Schema\Config\DatabaseConfig;
 use Sourcerer\Tool\Schema\Domain\SchemaState;
+use Sourcerer\Tool\Support\FileSystem;
 
 
 final class SchemaRepository
@@ -174,7 +175,7 @@ final class SchemaRepository
 
     private function localDirectory(): string
     {
-        return rtrim($this->projectRoot, '/') .'/.schema/'. $this->database;
+        return rtrim($this->projectRoot, '/') .'/.sourcerer/schema/local/'. $this->database;
     }
 
 
@@ -213,39 +214,14 @@ final class SchemaRepository
     }
 
 
-    private function writeFile(string $path, string $contents): void
+    private function ensureDirectory(string $directory): void
     {
-        $directory = dirname($path);
-        $this->ensureDirectory($directory);
-
-        $temporary = tempnam($directory, '.schema-');
-
-        if ($temporary === false) {
-            throw new RuntimeException("schema: could not create temporary file in {$directory}");
-        }
-
-        if (file_put_contents($temporary, $contents) === false) {
-            @unlink($temporary);
-            throw new RuntimeException("schema: could not write {$path}");
-        }
-
-        @chmod($temporary, 0644);
-
-        if ( ! rename($temporary, $path)) {
-            @unlink($temporary);
-            throw new RuntimeException("schema: could not move temporary file to {$path}");
-        }
+        FileSystem::ensureDirectory($directory, 0755);
     }
 
 
-    private function ensureDirectory(string $directory): void
+    private function writeFile(string $path, string $contents): void
     {
-        if (is_dir($directory)) {
-            return;
-        }
-
-        if ( ! mkdir($directory, 0755, true) && ! is_dir($directory)) {
-            throw new RuntimeException("schema: could not create directory {$directory}");
-        }
+        FileSystem::write($path, $contents, 0644);
     }
 }

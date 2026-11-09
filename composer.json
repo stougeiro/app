@@ -62,7 +62,8 @@
             "Sourcerer\\Tool\\Contract\\": "tools/contract/src/",
             "Sourcerer\\Tool\\Manager\\": "tools/manager/src/",
             "Sourcerer\\Tool\\Code\\": "tools/code/src/",
-            "Sourcerer\\Tool\\Schema\\": "tools/schema/src/"
+            "Sourcerer\\Tool\\Schema\\": "tools/schema/src/",
+            "Sourcerer\\Tool\\Support\\": "tools/support/src/"
         }
     },
     "require-dev": {

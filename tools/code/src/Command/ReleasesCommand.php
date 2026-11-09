@@ -69,14 +69,14 @@ final class ReleasesCommand extends CommandAbstracted
         $store = new ReleaseStore($this->projectRoot);
         $manifests = [];
 
-        foreach (glob(rtrim($this->projectRoot, '/') .'/.deploy/releases/*/manifest.json') ?: [] as $file) {
+        foreach (glob(rtrim($this->projectRoot, '/') .'/.sourcerer/code/releases/*/manifest.json') ?: [] as $file) {
             $releaseId = basename(dirname($file));
             $manifests[$releaseId] = $store->manifest($releaseId);
         }
 
         $events = [];
 
-        foreach (glob(rtrim($this->projectRoot, '/') .'/.deploy/events/*.json') ?: [] as $file) {
+        foreach (glob(rtrim($this->projectRoot, '/') .'/.sourcerer/code/events/*.json') ?: [] as $file) {
             $raw = file_get_contents($file);
 
             if ($raw === false) {

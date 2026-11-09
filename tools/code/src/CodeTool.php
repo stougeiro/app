@@ -5,7 +5,6 @@ namespace Sourcerer\Tool\Code;
 use Sourcerer\Tool\Contract\CommandInterface;
 use Sourcerer\Tool\Contract\ToolInterface;
 use Sourcerer\Tool\Code\Command\CheckCommand;
-use Sourcerer\Tool\Code\Command\InitCommand;
 use Sourcerer\Tool\Code\Command\PromoteCommand;
 use Sourcerer\Tool\Code\Command\PushCommand;
 use Sourcerer\Tool\Code\Command\ReleasesCommand;
@@ -36,12 +35,17 @@ final class CodeTool implements ToolInterface
     public function commands(string $projectRoot): array
     {
         return [
-            'code init' => new InitCommand($projectRoot),
             'code check' => new CheckCommand($projectRoot),
             'code push' => new PushCommand($projectRoot),
             'code promote' => new PromoteCommand($projectRoot),
             'code releases' => new ReleasesCommand($projectRoot),
             'code rollback' => new RollbackCommand($projectRoot),
         ];
+    }
+
+    /** @return list<string> */
+    public function install(string $projectRoot): array
+    {
+        return (new Initializer($projectRoot))->run();
     }
 }

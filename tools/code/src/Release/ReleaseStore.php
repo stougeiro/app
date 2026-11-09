@@ -76,6 +76,6 @@ final class ReleaseStore
 
     private function directory(string $releaseId): string
     {
-        return rtrim($this->projectRoot, '/') .'/.deploy/releases/'. $releaseId;
+        return rtrim($this->projectRoot, '/') .'/.sourcerer/code/releases/'. $releaseId;
     }
 }

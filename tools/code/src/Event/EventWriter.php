@@ -4,7 +4,7 @@ namespace Sourcerer\Tool\Code\Event;
 
 use Throwable;
 use Sourcerer\Tool\Contract\OutputInterface;
-use Sourcerer\Tool\Code\Operator\Operator;
+use Sourcerer\Tool\Contract\Operator;
 use Sourcerer\Tool\Code\Shell;
 use Sourcerer\Tool\Code\Target;
 

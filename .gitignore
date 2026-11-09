@@ -1,13 +1,13 @@
 # VSCode
 .devcontainer/
 
-# Composer
-/vendor/
-
 # OpenCode
 .opencode/
 .agents/
 opencode.json
+
+# Composer
+/vendor/
 
 # Composer cache (opcional, mas útil)
 .cache/
@@ -26,15 +26,6 @@ composer-cache/
 .DS_Store
 Thumbs.db
 
-# Runtime storage
-/application/storage/cache/*
-/application/storage/log/*
-/application/storage/session/*
-/application/storage/temp/*
-/application/storage/upload/*
-/application/storage/*.sqlite
-
-
 # PHPUnit / Pest
 .phpunit.result.cache
 .phpunit.cache/
@@ -50,15 +41,23 @@ psalm-cache/
 coverage/
 /build/
 
-!.gitkeep
-
 # Ambiente
 /application/env.json
 
-# Deploy
-/deploy.json
-/.deploy/
+# Runtime storage
+/application/storage/cache/*
+/application/storage/log/*
+/application/storage/session/*
+/application/storage/temp/*
+/application/storage/upload/*
+/application/storage/*.sqlite
+
+# Sourcerer platform (local control)
+/.sourcerer/
 
 # Schema
 /schema.json
 /.schema/
+
+
+!.gitkeep

@@ -18,7 +18,7 @@ final class LocalTargetState
     /** @param array<string, mixed> $data */
     public function write(array $data): void
     {
-        $directory = rtrim($this->projectRoot, '/') .'/.deploy/targets';
+        $directory = rtrim($this->projectRoot, '/') .'/.sourcerer/code/targets';
 
         if ( ! is_dir($directory) && ! mkdir($directory, 0700, true) && ! is_dir($directory)) {
             throw new RuntimeException("could not create local target directory: {$directory}");

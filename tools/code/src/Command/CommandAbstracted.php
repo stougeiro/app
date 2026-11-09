@@ -8,7 +8,8 @@ use Sourcerer\Tool\Contract\InputInterface;
 use Sourcerer\Tool\Contract\OutputInterface;
 use Sourcerer\Tool\Code\Config;
 use Sourcerer\Tool\Code\Deployer;
-use Sourcerer\Tool\Code\Operator\Operator;
+use Sourcerer\Tool\Contract\Operator;
+use Sourcerer\Tool\Contract\OperatorFile;
 use Sourcerer\Tool\Code\Release\ReleaseSync;
 use Sourcerer\Tool\Code\Shell;
 use Sourcerer\Tool\Code\Target;
@@ -61,13 +62,13 @@ abstract class CommandAbstracted implements CommandInterface
 
     protected function config(): Config
     {
-        return $this->config ??= Config::load($this->projectRoot .'/deploy.json');
+        return $this->config ??= Config::load($this->projectRoot .'/.sourcerer/code/config.json');
     }
 
 
     protected function operator(): Operator
     {
-        return $this->config()->requireOperator();
+        return OperatorFile::load($this->projectRoot);
     }
 
 

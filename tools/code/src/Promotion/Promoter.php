@@ -9,7 +9,7 @@ use Sourcerer\Tool\Code\Backup\SnapshotStore;
 use Sourcerer\Tool\Code\Event\EventWriter;
 use Sourcerer\Tool\Code\Lock\TargetLock;
 use Sourcerer\Tool\Code\Maintenance;
-use Sourcerer\Tool\Code\Operator\Operator;
+use Sourcerer\Tool\Contract\Operator;
 use Sourcerer\Tool\Code\Preflight\Preflight;
 use Sourcerer\Tool\Code\Release\ReleaseExporter;
 use Sourcerer\Tool\Code\Release\ReleaseManifest;

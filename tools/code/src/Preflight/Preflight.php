@@ -140,7 +140,7 @@ final class Preflight
         {
             $this->out(
                 'warning: webroot is not directly under root; add an index.php entrypoint at '
-                .'.deploy/override/'. $this->target->name .'/public/index.php',
+                .'.sourcerer/code/override/'. $this->target->name .'/public/index.php',
             );
         }
     }

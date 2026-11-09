@@ -47,7 +47,7 @@ final class ReleaseSync
             $events = (new EventLog($this->projectRoot, $target, $this->shell))->remoteNames();
 
             foreach ($manifests as $releaseId) {
-                $local = rtrim($this->projectRoot, '/') .'/.deploy/releases/'. $releaseId .'/manifest.json';
+                $local = rtrim($this->projectRoot, '/') .'/.sourcerer/code/releases/'. $releaseId .'/manifest.json';
 
                 if (is_file($local)) {
                     continue;

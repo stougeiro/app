@@ -7,6 +7,6 @@ final class Paths
 {
     public static function override(string $projectRoot, string $targetName, string $tree): string
     {
-        return rtrim($projectRoot, '/') .'/.deploy/override/'. $targetName .'/'. $tree;
+        return rtrim($projectRoot, '/') .'/.sourcerer/code/override/'. $targetName .'/'. $tree;
     }
 }

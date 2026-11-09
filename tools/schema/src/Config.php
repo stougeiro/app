@@ -29,26 +29,26 @@ final class Config
 
     public static function load(string $projectRoot): self
     {
-        $file = rtrim($projectRoot, '/') .'/schema.json';
+        $file = rtrim($projectRoot, '/') .'/.sourcerer/schema/config.json';
 
         if ( ! is_file($file) || ! is_readable($file)) {
-            throw new RuntimeException('schema: schema.json not found or unreadable');
+            throw new RuntimeException('schema: .sourcerer/schema/config.json not found or unreadable');
         }
 
         $raw = file_get_contents($file);
 
         if ($raw === false) {
-            throw new RuntimeException('schema: could not read schema.json');
+            throw new RuntimeException('schema: could not read .sourcerer/schema/config.json');
         }
 
         try {
             $data = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
-            throw new RuntimeException('schema: invalid schema.json: '. $exception->getMessage(), 0, $exception);
+            throw new RuntimeException('schema: invalid .sourcerer/schema/config.json: '. $exception->getMessage(), 0, $exception);
         }
 
         if ( ! is_array($data)) {
-            throw new RuntimeException('schema: schema.json must contain an object');
+            throw new RuntimeException('schema: .sourcerer/schema/config.json must contain an object');
         }
 
         $definitions = $data['databases'] ?? null;

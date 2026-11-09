@@ -8,7 +8,7 @@ use Sourcerer\Tool\Contract\OutputInterface;
 use Sourcerer\Tool\Code\Backup\SnapshotStore;
 use Sourcerer\Tool\Code\Event\EventWriter;
 use Sourcerer\Tool\Code\Lock\TargetLock;
-use Sourcerer\Tool\Code\Operator\Operator;
+use Sourcerer\Tool\Contract\Operator;
 use Sourcerer\Tool\Code\Preflight\Preflight;
 use Sourcerer\Tool\Code\Release\ArtifactVerifier;
 use Sourcerer\Tool\Code\Release\ReleaseHasher;
@@ -19,7 +19,7 @@ use Sourcerer\Tool\Code\Release\ReleaseStore;
 use Sourcerer\Tool\Code\Remote\RemoteFiles;
 use Sourcerer\Tool\Code\Remote\Scp;
 use Sourcerer\Tool\Code\State\LocalTargetState;
-use Sourcerer\Tool\Code\Support\FileSystem;
+use Sourcerer\Tool\Support\FileSystem;
 use Sourcerer\Tool\Code\Transport\Transfer;
 use Sourcerer\Tool\Code\Verify\Verifier;
 
@@ -194,12 +194,16 @@ class Deployer
         {
             $lock->release();
 
-            if ($releaseArchive !== null && is_file($releaseArchive)) {
-                @unlink($releaseArchive);
+            if ($releaseArchive !== null && ! FileSystem::tryDelete($releaseArchive)) {
+                $this->out('warning: could not remove temporary release archive');
             }
 
             if ($build !== null) {
-                FileSystem::removeDir($build['dir']);
+                try {
+                    FileSystem::removeDir($build['dir']);
+                } catch (Throwable $cleanup) {
+                    $this->out('warning: could not remove build directory: '. $cleanup->getMessage());
+                }
             }
         }
     }

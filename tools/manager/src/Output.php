@@ -85,6 +85,6 @@ final class Output implements OutputInterface
     /** @param resource $stream */
     protected function supportsAnsi($stream): bool
     {
-        return function_exists('stream_isatty') && @stream_isatty($stream);
+        return is_resource($stream) && function_exists('stream_isatty') && stream_isatty($stream);
     }
 }

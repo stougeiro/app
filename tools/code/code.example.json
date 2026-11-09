@@ -1,14 +1,10 @@
 {
-  "operator": {
-    "name": "Your Name",
-    "email": "you@example.com"
-  },
-  "defaults": {
+  "global": {
     "ssh": {
       "host": "example.com",
       "port": 22,
       "user": "deploy",
-      "identity": ".deploy/ssh/deploy_ed25519"
+      "identity": ".sourcerer/code/ssh/deploy_ed25519"
     },
     "root": {
       "base": "/home/deploy/domains/example.com"

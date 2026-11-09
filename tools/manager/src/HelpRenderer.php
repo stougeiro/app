@@ -24,7 +24,8 @@ final class HelpRenderer
         $output->line("Sourcerer {$version}");
         $output->line();
         $output->line('Usage:');
-        $output->line('  sourcerer <tool> [options]');
+        $output->line('  sourcerer <command> [options]');
+        $output->line('  sourcerer <tool> <command> [options]');
         $output->line('  sourcerer --help');
         $output->line('  sourcerer --version');
         $output->line();
@@ -34,6 +35,21 @@ final class HelpRenderer
             $output->line(
                 '  '. str_pad($name, 12) . str_pad($group['version'], 10) . $group['description'],
             );
+        }
+
+        $platform = array_filter(
+            $commands,
+            static fn (string $name): bool => ! str_contains($name, ' '),
+            ARRAY_FILTER_USE_KEY,
+        );
+
+        if ($platform !== []) {
+            $output->line();
+            $output->line('Commands:');
+
+            foreach ($platform as $name => $command) {
+                $output->line('  '. str_pad($name, 16) . $command->description());
+            }
         }
 
         $output->line();

@@ -34,7 +34,7 @@ final class RedirectStub
 
     private function read(string $file): string
     {
-        $custom = $this->projectRoot .'/.deploy/stub/'. $file;
+        $custom = $this->projectRoot .'/.sourcerer/code/stub/'. $file;
 
         if (is_file($custom)) {
             return $this->contents($custom);

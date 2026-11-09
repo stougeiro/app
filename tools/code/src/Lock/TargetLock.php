@@ -3,7 +3,7 @@
 namespace Sourcerer\Tool\Code\Lock;
 
 use RuntimeException;
-use Sourcerer\Tool\Code\Operator\Operator;
+use Sourcerer\Tool\Contract\Operator;
 use Sourcerer\Tool\Code\Shell;
 use Sourcerer\Tool\Code\Ssh;
 use Sourcerer\Tool\Code\Target;

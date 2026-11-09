@@ -13,4 +13,7 @@ interface ToolInterface
 
     /** @return array<string, CommandInterface> */
     public function commands(string $projectRoot): array;
+
+    /** @return list<string> */
+    public function install(string $projectRoot): array;
 }

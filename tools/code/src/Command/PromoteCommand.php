@@ -10,6 +10,7 @@ use Sourcerer\Tool\Contract\OutputInterface;
 use Sourcerer\Tool\Code\Config;
 use Sourcerer\Tool\Code\Environment\EnvironmentChain;
 use Sourcerer\Tool\Code\Promotion\Promoter;
+use Sourcerer\Tool\Support\FileSystem;
 
 
 final class PromoteCommand extends CommandAbstracted
@@ -41,7 +42,7 @@ final class PromoteCommand extends CommandAbstracted
             throw new RuntimeException('--from is required');
         }
 
-        $config = Config::load($this->projectRoot .'/deploy.json');
+        $config = Config::load($this->projectRoot .'/.sourcerer/code/config.json');
         $source = $config->target($from);
 
         $next = EnvironmentChain::next($from, $config->names());
@@ -63,9 +64,17 @@ final class PromoteCommand extends CommandAbstracted
             $sourcePromoter->retire($destination->url, $destination->name);
         } finally {
             if ($release['temporary']) {
-                @unlink($release['archive']);
-                @unlink(dirname($release['archive']) .'/manifest.json');
-                @rmdir(dirname($release['archive']));
+                if ( ! FileSystem::tryDelete($release['archive'])) {
+                    $output->warning('warning: could not remove temporary release archive');
+                }
+
+                if ( ! FileSystem::tryDelete(dirname($release['archive']) .'/manifest.json')) {
+                    $output->warning('warning: could not remove temporary release manifest');
+                }
+
+                if ( ! FileSystem::tryDelete(dirname($release['archive']))) {
+                    $output->warning('warning: could not remove temporary release directory');
+                }
             }
         }
 

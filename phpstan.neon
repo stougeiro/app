@@ -10,6 +10,7 @@ parameters:
         - tools/contract/src
         - tools/code/src
         - tools/schema/src
+        - tools/support/src
         - tools/manager/src
         - tools/manager/console.php
         - tools/manager/tools.php

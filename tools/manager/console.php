@@ -3,6 +3,9 @@
 
 use Sourcerer\Tool\Contract\ToolInterface;
 use Sourcerer\Tool\Manager\Application;
+use Sourcerer\Tool\Manager\Command\InstallCommand;
+use Sourcerer\Tool\Manager\Command\OperatorCommand;
+use Sourcerer\Tool\Manager\Command\OperatorRequiredCommand;
 
 $toolsRoot = dirname(__DIR__);
 
@@ -11,6 +14,7 @@ spl_autoload_register(static function (string $class) use ($toolsRoot): void {
         'Sourcerer\\Tool\\Contract\\' => $toolsRoot .'/contract/src/',
         'Sourcerer\\Tool\\Code\\' => $toolsRoot .'/code/src/',
         'Sourcerer\\Tool\\Schema\\' => $toolsRoot .'/schema/src/',
+        'Sourcerer\\Tool\\Support\\' => $toolsRoot .'/support/src/',
         'Sourcerer\\Tool\\Manager\\' => $toolsRoot .'/manager/src/',
     ];
 
@@ -40,14 +44,25 @@ if ($projectRoot === false || $projectRoot === '') {
 }
 
 try {
-    /** @var list<class-string<ToolInterface>> $tools */
-    $tools = require __DIR__ .'/tools.php';
-    $commands = [];
+    /** @var list<class-string<ToolInterface>> $toolClasses */
+    $toolClasses = require __DIR__ .'/tools.php';
+    $tools = [];
+
+    foreach ($toolClasses as $toolClass) {
+        $tools[] = new $toolClass();
+    }
+
+    $commands = [
+        'install' => new InstallCommand($projectRoot, $tools),
+        'operator' => new OperatorCommand($projectRoot),
+    ];
     $groups = [];
 
-    foreach ($tools as $toolClass) {
-        $tool = new $toolClass();
-        $commands += $tool->commands($projectRoot);
+    foreach ($tools as $tool) {
+        foreach ($tool->commands($projectRoot) as $name => $command) {
+            $commands[$name] = new OperatorRequiredCommand($command, $projectRoot);
+        }
+
         $groups[$tool->name()] = [
             'description' => $tool->description(),
             'version' => $tool->version(),

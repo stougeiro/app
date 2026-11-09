@@ -104,7 +104,7 @@ final class EventLog
 
     public function localDirectory(): string
     {
-        return rtrim($this->projectRoot, '/') .'/.deploy/events';
+        return rtrim($this->projectRoot, '/') .'/.sourcerer/code/events';
     }
 
     public function localPath(string $name): string

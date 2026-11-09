@@ -6,7 +6,6 @@ use JsonException;
 use RuntimeException;
 use Sourcerer\Tool\Code\Config\TargetFactory;
 use Sourcerer\Tool\Code\Config\TargetGraph;
-use Sourcerer\Tool\Code\Operator\Operator;
 
 
 class Config
@@ -20,8 +19,6 @@ class Config
 
     /** @var array<string, Target> */
     private array $targets = [];
-
-    private ?Operator $operator = null;
 
 
     private function __construct()
@@ -64,11 +61,11 @@ class Config
             throw new RuntimeException("config: 'targets' must be a non-empty object");
         }
 
-        $defaults = $data['defaults'] ?? [];
+        $defaults = $data['global'] ?? [];
 
         if ( ! is_array($defaults))
         {
-            throw new RuntimeException("config: 'defaults' must be an object");
+            throw new RuntimeException("config: 'global' must be an object");
         }
 
         $root = realpath(dirname($file));
@@ -79,7 +76,6 @@ class Config
         }
 
         $config = new self();
-        $config->operator = self::buildOperator($data['operator'] ?? null);
 
         foreach ($targets as $name => $target)
         {
@@ -103,22 +99,6 @@ class Config
         $config->targets = TargetGraph::withNestedWebroots($config->targets);
 
         return $config;
-    }
-
-
-    public function operator(): ?Operator
-    {
-        return $this->operator;
-    }
-
-
-    public function requireOperator(): Operator
-    {
-        if ($this->operator === null) {
-            throw new RuntimeException('config: operator.name is required');
-        }
-
-        return $this->operator;
     }
 
 
@@ -180,28 +160,4 @@ class Config
     }
 
 
-    private static function buildOperator(mixed $value): ?Operator
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        if ( ! is_array($value)) {
-            throw new RuntimeException("config: 'operator' must be an object");
-        }
-
-        $name = $value['name'] ?? null;
-
-        if ( ! is_string($name) || trim($name) === '') {
-            throw new RuntimeException("config: 'operator.name' must be a non-empty string");
-        }
-
-        $email = $value['email'] ?? null;
-
-        if ($email !== null && ( ! is_string($email) || trim($email) === '')) {
-            throw new RuntimeException("config: 'operator.email' must be a non-empty string");
-        }
-
-        return new Operator(trim($name), is_string($email) ? trim($email) : null);
-    }
 }
