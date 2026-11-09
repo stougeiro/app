@@ -51,13 +51,11 @@ coverage/
 /application/storage/temp/*
 /application/storage/upload/*
 /application/storage/*.sqlite
+/application/storage/*.sqlite-wal
+/application/storage/*.sqlite-shm
+/application/storage/*.sqlite-journal
 
 # Sourcerer platform (local control)
 /.sourcerer/
-
-# Schema
-/schema.json
-/.schema/
-
 
 !.gitkeep
