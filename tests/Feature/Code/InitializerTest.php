@@ -29,6 +29,8 @@ test('creates the local code layout and copies the example config', function () 
         ->and(is_dir($root .'/.sourcerer/code/override/staging/application'))->toBeTrue()
         ->and(is_dir($root .'/.sourcerer/code/override/production/public'))->toBeTrue()
         ->and(is_dir($root .'/.sourcerer/code/override/production/vendor'))->toBeFalse()
+        ->and(is_dir($root .'/.sourcerer/code/backups'))->toBeFalse()
+        ->and(is_dir($root .'/.sourcerer/code/lock'))->toBeFalse()
         ->and(file_get_contents($root .'/.sourcerer/code/config.json'))->toBe('{"global":{},"targets":{}}')
         ->and($lines)->toContain('created .sourcerer/code');
 });
@@ -107,8 +109,7 @@ test('creates the redirect stubs', function () {
         ->toContain('header(\'Location: %url%\')')
         ->and(file_get_contents($root .'/.sourcerer/code/stub/.htaccess'))
         ->toContain('RewriteRule ^(.*)$ index.php [L,QSA]')
-        ->and(is_dir($root .'/.sourcerer/code/releases'))->toBeTrue()
-        ->and(is_dir($root .'/.sourcerer/code/targets'))->toBeTrue();
+        ->and(is_dir($root .'/.sourcerer/code/releases'))->toBeTrue();
 });
 
 

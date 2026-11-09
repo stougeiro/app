@@ -20,7 +20,6 @@ use Sourcerer\Tool\Code\Remote\Scp;
 use Sourcerer\Tool\Code\Retirement\RedirectStub;
 use Sourcerer\Tool\Code\Shell;
 use Sourcerer\Tool\Code\Ssh;
-use Sourcerer\Tool\Code\State\LocalTargetState;
 use Sourcerer\Tool\Code\Target;
 use Sourcerer\Tool\Code\Transport\Transfer;
 use Sourcerer\Tool\Code\Verify\Verifier;
@@ -48,8 +47,6 @@ final class Promoter
 
     private readonly EventWriter $events;
 
-    private readonly LocalTargetState $local;
-
 
     public function __construct(
         private readonly string $projectRoot,
@@ -68,7 +65,6 @@ final class Promoter
         $this->publisher = new ReleasePublisher($projectRoot, $target, $shell, $this->ssh, $this->scp, $this->remote, $output);
         $this->verifier = new Verifier($target, $shell, $output);
         $this->events = new EventWriter($target, $operator, $output, $projectRoot, $shell);
-        $this->local = new LocalTargetState($projectRoot, $target->name);
     }
 
 
@@ -121,14 +117,6 @@ final class Promoter
             $store->persist($manifest);
             $artifactVerified = $this->publisher->upload($manifest, $archive);
             $this->remote->writeCurrent($manifest, $snapshot, 'current', $previousReleaseId, $promotedFrom);
-            $this->local->write([
-                'releaseId' => $manifest->releaseId,
-                'contentHash' => $manifest->contentHash,
-                'version' => $manifest->version,
-                'status' => 'current',
-                'backup' => $snapshot,
-                'promotedFrom' => $promotedFrom,
-            ]);
             $this->events->write('promote', $manifest->releaseId, $promotedFrom, $this->target->name, $snapshot, [
                 'artifactVerified' => $artifactVerified,
             ]);
@@ -212,14 +200,6 @@ final class Promoter
                 'promotedAt' => gmdate('c'),
             ]);
 
-            $this->local->write([
-                'releaseId' => $current['releaseId'] ?? null,
-                'contentHash' => $current['contentHash'] ?? null,
-                'version' => $current['version'] ?? null,
-                'status' => 'redirected',
-                'redirectTo' => $redirectUrl,
-                'promotedTo' => $promotedTo,
-            ]);
 
             $retireRelease = $current['releaseId'] ?? 'unknown';
             $this->events->write('retire', is_string($retireRelease) ? $retireRelease : 'unknown', $this->target->name, $promotedTo, $snapshot);

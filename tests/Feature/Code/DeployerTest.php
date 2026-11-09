@@ -526,7 +526,6 @@ test('push stores a release manifest, event and current marker', function () {
         ->and($calls)->toContain('storage.tar.gz')
         ->and($calls)->toContain('current.json')
         ->and($calls)->toContain('release.tar.gz')
-        ->and(is_file($root .'/.sourcerer/code/targets/staging.json'))->toBeTrue()
         ->and($calls)->toContain('--exclude=application/env.json')
         ->and($calls)->not->toContain('backups/staging')
         ->and($manifestData['artifactHash'] ?? null)->toBe('sha256:'. hash('sha256', ''))

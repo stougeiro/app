@@ -33,9 +33,6 @@ class Initializer
             $base .'/stub',
             $base .'/releases',
             $base .'/events',
-            $base .'/targets',
-            $base .'/backups',
-            $base .'/lock',
         ];
 
         foreach (Config::TARGETS as $environment) {

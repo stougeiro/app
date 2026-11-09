@@ -18,7 +18,6 @@ use Sourcerer\Tool\Code\Release\ReleasePublisher;
 use Sourcerer\Tool\Code\Release\ReleaseStore;
 use Sourcerer\Tool\Code\Remote\RemoteFiles;
 use Sourcerer\Tool\Code\Remote\Scp;
-use Sourcerer\Tool\Code\State\LocalTargetState;
 use Sourcerer\Tool\Support\FileSystem;
 use Sourcerer\Tool\Code\Transport\Transfer;
 use Sourcerer\Tool\Code\Verify\Verifier;
@@ -46,8 +45,6 @@ class Deployer
 
     private readonly EventWriter $events;
 
-    private readonly LocalTargetState $local;
-
     private bool $hasRsync = false;
 
 
@@ -68,7 +65,6 @@ class Deployer
         $this->publisher = new ReleasePublisher($projectRoot, $target, $shell, $this->ssh, $this->scp, $this->remote, $output);
         $this->verifier = new Verifier($target, $shell, $output);
         $this->events = new EventWriter($target, $operator, $output, $projectRoot, $shell);
-        $this->local = new LocalTargetState($projectRoot, $target->name);
     }
 
 
@@ -143,13 +139,6 @@ class Deployer
             $store->persist($manifest);
             $artifactVerified = $this->publisher->upload($manifest, $releaseArchive);
             $this->remote->writeCurrent($manifest, $snapshot, 'current');
-            $this->local->write([
-                'releaseId' => $manifest->releaseId,
-                'contentHash' => $manifest->contentHash,
-                'version' => $manifest->version,
-                'status' => 'current',
-                'backup' => $snapshot,
-            ]);
             $this->events->write('push', $manifest->releaseId, null, $this->target->name, $snapshot, [
                 'artifactVerified' => $artifactVerified,
             ]);
@@ -257,10 +246,8 @@ class Deployer
 
             if (is_string($previousReleaseId) && $previousReleaseId !== '') {
                 $this->remote->writeCurrentReleaseId($previousReleaseId);
-                $this->local->write(['releaseId' => $previousReleaseId, 'status' => 'current']);
             } else {
                 $this->remote->deleteCurrent();
-                $this->local->write(['status' => 'maintenance']);
             }
 
             $this->transfer->applyOverrides($this->hasRsync);

@@ -31,12 +31,14 @@ Local `.sourcerer/code/` also contains:
 .sourcerer/code/stub/.htaccess   rewrite stub used when a target is retired
 .sourcerer/code/releases/        local release manifest mirror
 .sourcerer/code/events/          local deploy event mirror
-.sourcerer/code/targets/         local release metadata per target
 .sourcerer/code/ssh/             local SSH keys
 ```
 
 The whole `.sourcerer/` directory is ignored by Git. It contains target
 addresses, local state and SSH references.
+
+Local `backups/` and `lock/` directories are not created. Backups and the
+production lock are remote, under `<root>/.deploy/`.
 
 Remote `.deploy/` remains the deployment state on the server and is created by
 the tool.

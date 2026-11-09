@@ -78,6 +78,8 @@ test('install calls each tool install and creates the control layout', function 
 
     expect($command->run(Input::parse([], $command->options()), $fixture['output']))->toBe(0)
         ->and(is_dir($root .'/.sourcerer/code/ssh'))->toBeTrue()
+        ->and(is_dir($root .'/.sourcerer/code/backups'))->toBeFalse()
+        ->and(is_dir($root .'/.sourcerer/code/lock'))->toBeFalse()
         ->and(is_file($root .'/.sourcerer/code/config.json'))->toBeTrue()
         ->and(is_dir($root .'/.sourcerer/schema/local/tmp'))->toBeTrue()
         ->and(is_file($root .'/.sourcerer/schema/config.json'))->toBeTrue()
