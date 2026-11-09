@@ -58,7 +58,7 @@ schema/<database>/
 Local scratch data lives outside version control:
 
 ```text
-.schema/<database>/
+.sourcerer/schema/local/<database>/
 ├── stage.json
 ├── indexes/
 ├── targets/
@@ -67,7 +67,8 @@ Local scratch data lives outside version control:
 
 ## Configuration
 
-`schema.json` is independent from `application/config/database.php` and is not versioned.
+`.sourcerer/schema/config.json` is independent from
+`application/config/database.php` and is not versioned.
 
 ```json
 {
@@ -87,7 +88,7 @@ Local scratch data lives outside version control:
             "host": "example.com",
             "port": 22,
             "user": "deploy",
-            "identity": ".schema/ssh/deploy_ed25519",
+            "identity": ".sourcerer/schema/ssh/deploy_ed25519",
             "php_binary": "/opt/alt/php82/usr/bin/php"
           }
         }
@@ -102,6 +103,13 @@ Targets are fixed: `local`, `development`, `staging`, `production`.
 Each database has one driver. The remote transport is SSH plus an explicit PHP CLI binary. There is no direct remote PDO transport.
 
 ## Commands
+
+Platform setup:
+
+```bash
+./sourcerer operator --name="Developer" --email="developer@example.com"
+./sourcerer install
+```
 
 Currently implemented:
 

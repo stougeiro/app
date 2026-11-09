@@ -78,7 +78,9 @@ Nothing under `application/` should be exposed by the web server.
 | Code tool source | `tools/code` |
 | Schema tool source | `tools/schema` |
 | Tool entrypoint | `./sourcerer` |
-| Deploy configuration/state | `deploy.json`, `.deploy` (local only) |
+| Shared tool support | `tools/support` |
+| Tool local control/config | `.sourcerer/<tool>` (local only) |
+| Schema versioned state | `schema/<database>` |
 
 Prefer the smallest location that matches the responsibility. Do not put
 business rules in providers, and do not put runtime services in `public`.
@@ -353,22 +355,27 @@ tools/contract
     ↑
 tools/code
 tools/schema
+tools/support
 ```
 
 The rules are:
 
 - `tools/contract` holds shared tool contracts (`Sourcerer\Tool\Contract`);
 - `tools/manager` holds the CLI runtime (`Sourcerer\Tool\Manager`);
+- `tools/support` holds shared tool support (`Sourcerer\Tool\Support`);
 - each tool lives in `tools/<tool>`; `tools/code` (`Sourcerer\Tool\Code`) and
   `tools/schema` (`Sourcerer\Tool\Schema`) are the current tools;
 - tools are registered explicitly in `tools/manager/tools.php`;
-- tools receive the project root explicitly through
-  `ToolInterface::commands(string $projectRoot)`;
+- the manager owns `install` and `operator`; every tool exposes
+  `install(string $projectRoot): array` and receives the project root through
+  `commands(string $projectRoot)`;
+- the shared operator identity lives in `.sourcerer/operator.json`;
+- `./sourcerer install` prepares the local `.sourcerer/` layout;
 - tools must not require `application/`, `stougeiro/base`, the application
   bootstrap or its container;
 - tools must not be uploaded to the server;
-- `deploy.json` and `.deploy/` are local configuration/state and are ignored by
-  Git;
+- `.sourcerer/` holds local tool control/config/state and is ignored by Git;
+  remote `.deploy/` remains deployment state on the server;
 - SSH keys and environment values stay outside version control.
 
 The Code tool deploys only:
@@ -379,7 +386,8 @@ public/        → target webroot
 vendor/        → target root
 ```
 
-Each target declares `root`, `webroot`, `url` and SSH settings in `deploy.json`.
+Each target declares `root`, `webroot`, `url` and SSH settings in
+`.sourcerer/code/config.json`.
 The Code tool validates paths and target address uniqueness, applies maintenance
 mode, creates remote backups and supports rollback.
 

@@ -92,11 +92,12 @@ composer install --no-dev --optimize-autoloader
 │   ├── contract/     shared tool contracts
 │   ├── manager/      CLI runtime, registry and Dockerfile
 │   ├── code/         Code tool source and example
-│   └── schema/       Schema tool source and example
-├── .deploy/          local deploy state and secrets (not versioned)
+│   ├── schema/       Schema tool source and example
+│   └── support/      shared tool support
+├── .sourcerer/       local tool control, configs and secrets (not versioned)
+├── schema/           versioned Schema state (database structure)
 ├── public/           document root
 ├── vendor/           Composer dependencies
-├── deploy.json       local deploy configuration (not versioned)
 ├── sourcerer         unified tool entrypoint
 ├── composer.json
 └── composer.lock
@@ -174,6 +175,18 @@ root, keeps `vendor/` inside the image and bind-mounts `application/` for
 real-time code and log inspection. Apache access and error logs are also written
 under `application/storage/log`.
 
+## Tool setup
+
+Configure the shared operator and install the local control layout:
+
+```bash
+./sourcerer operator --name="Developer" --email="developer@example.com"
+./sourcerer install
+```
+
+This creates `.sourcerer/operator.json`, `.sourcerer/code/` and
+`.sourcerer/schema/`. All tool commands require the operator.
+
 ## Code tool
 
 The repository includes an optional Code tool for repeatable SSH deployments.
@@ -181,7 +194,6 @@ It runs through the unified `./sourcerer` entrypoint, requires Docker locally an
 keeps the application runtime independent from deployment concerns.
 
 ```bash
-./sourcerer code init
 ./sourcerer code check --target=staging
 ./sourcerer code push --target=staging
 ./sourcerer code promote --from=staging
@@ -189,8 +201,9 @@ keeps the application runtime independent from deployment concerns.
 ./sourcerer code rollback --target=staging --list
 ```
 
-Targets are declared in `deploy.json`, with separate `root` and `webroot` paths,
-per-target overrides, maintenance mode, remote backups and rollback.
+Targets are declared in `.sourcerer/code/config.json`, with separate `root` and
+`webroot` paths, per-target overrides, maintenance mode, remote backups and
+rollback. Remote `.deploy/` remains the deployment state on the server.
 
 See [docs/CODE.md](docs/CODE.md) for configuration, commands and operational
 details.
@@ -205,6 +218,9 @@ the database.
 ./sourcerer schema status
 ./sourcerer schema status --target=local
 ```
+
+Configuration lives in `.sourcerer/schema/config.json`; local scratch data lives
+in `.sourcerer/schema/local`. Versioned structural state lives in `schema/`.
 
 It captures Genesis, maintains immutable releases, and will generate
 `release.sql` and `migration.sql` artifacts. Triggers, procedures and functions

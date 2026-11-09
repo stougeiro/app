@@ -13,28 +13,33 @@ runtime and must never be uploaded to the server. A deployment copies only
 ./sourcerer                   unified tool entrypoint
 tools/contract/               shared tool contracts
 tools/manager/                pluggable CLI runtime
+tools/support/                shared tool support
 tools/code/                   Code tool and example
 tools/manager/Dockerfile      tool runtime image
 tools/code/src/               Code classes
 tools/code/src/Command/       Code commands
 tools/code/resources/stub/    default redirect stubs for retired targets
-tools/code/deploy.example.json
-deploy.json                   local configuration (not versioned)
-.deploy/                      local state and secrets (not versioned)
+tools/code/code.example.json
+.sourcerer/code/config.json   local configuration (not versioned)
+.sourcerer/code/              local state and secrets (not versioned)
 ```
 
-Local `.deploy/` also contains:
+Local `.sourcerer/code/` also contains:
 
 ```text
-.deploy/stub/index.php       redirect stub used when a target is retired
-.deploy/stub/.htaccess       rewrite stub used when a target is retired
-.deploy/releases/            local release manifest mirror
-.deploy/events/              local deploy event mirror
-.deploy/targets/             local release metadata per target
+.sourcerer/code/stub/index.php   redirect stub used when a target is retired
+.sourcerer/code/stub/.htaccess   rewrite stub used when a target is retired
+.sourcerer/code/releases/        local release manifest mirror
+.sourcerer/code/events/          local deploy event mirror
+.sourcerer/code/targets/         local release metadata per target
+.sourcerer/code/ssh/             local SSH keys
 ```
 
-`deploy.json` and `.deploy/` are ignored by Git. They contain target addresses
-and SSH references.
+The whole `.sourcerer/` directory is ignored by Git. It contains target
+addresses, local state and SSH references.
+
+Remote `.deploy/` remains the deployment state on the server and is created by
+the tool.
 
 The local public directory is `public/`. On the server, the target `webroot`
 usually points to `public_html/` or another document root.
@@ -54,21 +59,21 @@ docker build -t stougeiro/sourcerer:local tools/manager
 
 ## Operator
 
-Every `deploy.json` must declare the person running the tool:
+The operator is shared by all tools and lives in:
 
-```json
-{
-  "operator": {
-    "name": "Developer",
-    "email": "developer@example.com"
-  }
-}
+```text
+.sourcerer/operator.json
 ```
 
-- `operator.name` is required.
-- `operator.email` is optional.
-- `check`, `push`, `promote` and `rollback` fail without it.
-- `deploy releases` does not require it.
+Configure it with:
+
+```bash
+./sourcerer operator --name="Developer" --email="developer@example.com"
+```
+
+- `name` and `email` are required.
+- All tool commands require the operator.
+- `operator` and `install` are the only commands that work without it.
 - Identity is declarative metadata, not authentication.
 
 ## Production lock
@@ -123,7 +128,7 @@ to the destination.
 
 ## Retention
 
-Remote retention is configured per target/defaults:
+Remote retention is configured per target/global:
 
 ```json
 "keep": {
@@ -135,20 +140,21 @@ Remote retention is configured per target/defaults:
 
 - pruning runs after a successful push/promote;
 - the current release is never removed;
-- local `.deploy/releases` and `.deploy/events` keep the full mirrored history;
+- local `.sourcerer/code/releases` and `.sourcerer/code/events` keep the full mirrored history;
 - `keep.backup` controls remote backups.
 
 ## Quick start
 
 ```bash
-./sourcerer code init
+./sourcerer operator --name="Developer" --email="developer@example.com"
+./sourcerer install
 ```
 
 Then:
 
-1. edit `deploy.json`;
-2. place SSH keys in `.deploy/ssh/` or use keys available under `~/.ssh/`;
-3. add per-target overrides under `.deploy/override/<target>/`;
+1. edit `.sourcerer/code/config.json`;
+2. place SSH keys in `.sourcerer/code/ssh/` or use keys available under `~/.ssh/`;
+3. add per-target overrides under `.sourcerer/code/override/<target>/`;
 4. validate the connection:
 
 ```bash
@@ -163,7 +169,7 @@ Deploy:
 
 ## Targets
 
-`deploy.json` has `defaults` and `targets`. Valid target names are
+`.sourcerer/code/config.json` has `global` and `targets`. Valid target names are
 `development`, `staging` and `production`.
 
 A demonstration, API or any other environment that runs a different codebase is
@@ -172,12 +178,12 @@ its own pipeline.
 
 ```json
 {
-  "defaults": {
+  "global": {
     "ssh": {
       "host": "example.com",
       "port": 22,
       "user": "deploy",
-      "identity": ".deploy/ssh/deploy_ed25519"
+      "identity": ".sourcerer/code/ssh/deploy_ed25519"
     },
     "root": {
       "base": "/home/deploy/domains/example.com"
@@ -282,7 +288,7 @@ Deeper nesting is rejected.
 Per-target overrides live under:
 
 ```text
-.deploy/override/<target>/
+.sourcerer/code/override/<target>/
 ├── application/
 └── public/
 ```
@@ -299,7 +305,7 @@ Override transfers never use `--delete`; they only add or replace files.
 Every target must provide its environment through the local override:
 
 ```text
-.deploy/override/<target>/application/env.json
+.sourcerer/code/override/<target>/application/env.json
 ```
 
 Remote `application/env.json` is never read, reused, promoted or restored from
@@ -323,7 +329,8 @@ restored by `rollback`.
 
 | Command | Purpose |
 |---|---|
-| `./sourcerer code init` | Creates `.deploy/` directories and copies the example to `deploy.json` |
+| `./sourcerer operator --name=<name> --email=<email>` | Configures the shared operator identity |
+| `./sourcerer install` | Creates `.sourcerer` layout and tool configs |
 | `./sourcerer code check --target=<name>` | Verifies SSH, writable paths, storage and transport |
 | `./sourcerer code push --target=<name>` | Builds vendor, creates a release, backs up, transfers, verifies and prunes backups |
 | `./sourcerer code promote --from=<name>` | Promotes the current release to the next target and retires the source |
@@ -333,7 +340,7 @@ restored by `rollback`.
 | `./sourcerer code rollback --target=<name> --list` | Lists backups for the target |
 | `./sourcerer code rollback --target=<name> [--timestamp=<Ymd-His>]` | Restores a backup; latest when omitted |
 
-`init` does not accept `--target`. `--list` and `--timestamp` are only valid for
+`--list` and `--timestamp` are only valid for
 `rollback` and cannot be used together. `--sync` must be used alone
 and cannot be combined with `--target`. `--force` on `push`/`promote` only
 overrides an active production lock.
@@ -369,7 +376,7 @@ Every successful push creates an immutable release.
 Local mirror:
 
 ```text
-.deploy/releases/<releaseId>/manifest.json
+.sourcerer/code/releases/<releaseId>/manifest.json
 ```
 
 Target:
@@ -410,7 +417,7 @@ After a successful promotion, the source target is retired:
 - the target root keeps only `.deploy/`;
 - `.deploy/` remains, including backups, releases and events.
 
-Stubs are customizable in `.deploy/stub/`. The canonical `index.php` placeholder
+Stubs are customizable in `.sourcerer/code/stub/`. The canonical `index.php` placeholder
 is `%url%`. Missing stub files fall back to the tool defaults in
 `tools/code/resources/stub/`.
 
@@ -427,8 +434,8 @@ Events are append-only and immutable:
 Local mirrors:
 
 ```text
-.deploy/releases/<releaseId>/manifest.json
-.deploy/events/<event>.json
+.sourcerer/code/releases/<releaseId>/manifest.json
+.sourcerer/code/events/<event>.json
 ```
 
 Reading is always local:

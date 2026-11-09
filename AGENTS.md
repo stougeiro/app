@@ -18,6 +18,8 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing code.
 - Keep tool source in `tools/<tool>` and register tools in
   `tools/manager/tools.php`.
 - Use `./sourcerer` as the single tool entrypoint.
+- Run `./sourcerer operator` and `./sourcerer install` before using tools.
+- `.sourcerer/operator.json` is mandatory for tool commands.
 - Keep reference documentation in `docs/`; only `README.md` and `AGENTS.md`
   live at the repository root.
 - Read [docs/CODE.md](docs/CODE.md) before changing deployment behavior.
@@ -48,7 +50,9 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing code.
 | Code tool source | `tools/code` |
 | Schema tool source | `tools/schema` |
 | Tool entrypoint | `./sourcerer` |
-| Deploy config/state | `deploy.json`, `.deploy` (local only) |
+| Shared tool support | `tools/support` |
+| Tool local control/config | `.sourcerer/<tool>` (local only) |
+| Schema versioned state | `schema/<database>` |
 
 ## Module rules
 
@@ -108,13 +112,13 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing code.
 - Read [docs/CODE.md](docs/CODE.md) before using or configuring the Code tool.
 - The normal change scope is `application/*` and `public/*`.
 - The tool source lives in `tools/code` and runs through `./sourcerer code`.
-- Successful pushes create immutable releases under `.deploy/releases`; promote
-  reuses the same releaseId across targets.
+- Successful pushes create immutable releases under remote `.deploy/releases`;
+  promote reuses the same releaseId across targets.
 - Environment values come only from
-  `.deploy/override/<target>/application/env.json`; remote or backed-up env
-  files are never reused.
-- `deploy.json` must declare `operator.name`; release/event identity comes from
-  it.
+  `.sourcerer/code/override/<target>/application/env.json`; remote or backed-up
+  env files are never reused.
+- The Code config lives in `.sourcerer/code/config.json`.
+- Release/event identity comes from `.sourcerer/operator.json`.
 - `code releases` reads the local mirror; `--sync` mirrors all targets.
 - Valid targets are `development`, `staging` and `production`. Do not add
   targets for environments that run a different codebase (for example a
@@ -123,7 +127,9 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing code.
   providers or modules.
 - Do not upload `tools/code/` to the server. A deploy transfers only
   `application/`, `public/` and `vendor/`.
-- Do not commit `deploy.json`, `.deploy/`, environment files or SSH keys.
+- Do not commit `.sourcerer/`, environment files or SSH keys.
+- Remote `.deploy/` remains the deployment state on the server and is created
+  by the tool.
 - Keep Code behavior covered by `tests/Feature/Code` and entrypoint behavior
   covered by `tests/Feature/EntrypointTest.php`.
 - Use `./sourcerer code --help` to validate the CLI.
@@ -135,7 +141,10 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing code.
 - Schema versions database structure only: tables, columns, keys, indexes, views and sequences.
 - Do not add support for triggers, procedures or functions. They belong to the application domain.
 - Schema must refuse to operate when unsupported objects are present.
-- `schema.json` is independent from `application/config/database.php`; do not import it.
+- The Schema config lives in `.sourcerer/schema/config.json` and is independent
+  from `application/config/database.php`; do not import it.
+- Local Schema scratch data lives in `.sourcerer/schema/local`.
+- Versioned Schema state lives in `schema/<database>` and is committed.
 - Local changes happen in the `local` target. Environment targets only receive releases.
 - `update` only accepts checkpointed releases.
 - `rollback` creates a new forward-only release; never rewrite history.
@@ -147,17 +156,21 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing code.
   - `Sourcerer\Tool\Contract` in `tools/contract/src`;
   - `Sourcerer\Tool\Manager` in `tools/manager/src`;
   - `Sourcerer\Tool\Code` in `tools/code/src`;
-  - `Sourcerer\Tool\Schema` in `tools/schema/src`.
-- `tools/manager/console.php` owns autoload, the tool registry and the project
-  root.
-- Every tool implements `Sourcerer\Tool\Contract\ToolInterface` and receives
-  the project root through `commands(string $projectRoot)`.
+  - `Sourcerer\Tool\Schema` in `tools/schema/src`;
+  - `Sourcerer\Tool\Support` in `tools/support/src`.
+- `tools/manager/console.php` owns autoload, the tool registry, the project
+  root, `install` and `operator`.
+- Every tool implements `Sourcerer\Tool\Contract\ToolInterface`, receives the
+  project root through `commands(string $projectRoot)` and exposes
+  `install(string $projectRoot): array`.
 - Tools must not load `application/bootstrap/app.php`, the application
   container or `stougeiro/base`.
 - Tool code must not import application runtime classes: `App\*`, `STDW\*`, or
   `Sourcerer\*` outside the `Sourcerer\Tool\*` namespace.
 - The application must never require `tools/`.
 - Keep the tool runtime image in `tools/manager/Dockerfile`.
+- Never use `@` to suppress filesystem or runtime warnings. Use
+  `Sourcerer\Tool\Support\FileSystem` or explicit error handling.
 
 ## Dependencies
 
@@ -206,7 +219,9 @@ Docker-only paths or Apache vhost edits.
 - Expose `application/` through the web server.
 - Add inline CSS or scripts under the current CSP.
 - Treat Docker as a production requirement.
-- Commit deploy secrets, environment values or SSH keys.
+- Commit `.sourcerer/`, environment values or SSH keys.
+- Suppress filesystem/runtime warnings with `@`; use the shared `FileSystem`
+  support or explicit error handling.
 - Put tool source under `public` or require it from the runtime.
 - Make `application/` depend on `tools/`.
 - Make `tools/` depend on `application/` or the application bootstrap.
