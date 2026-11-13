@@ -135,6 +135,9 @@ Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) before changing code.
 - Use `./sourcerer code --help` to validate the CLI.
 - Docker is the only local runtime requirement for `./sourcerer`.
 
+- SSH auth lives in `.sourcerer/code/auth/` with `ssh.auth.type` (`key` or `pass`) and `ssh.auth.file`; never commit auth files.
+- Password auth uses `sshpass`; key auth keeps the existing key flow.
+
 ## Schema tool
 
 - Read [docs/SCHEMA.md](docs/SCHEMA.md) before using or configuring the Schema tool.

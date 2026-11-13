@@ -5,6 +5,7 @@ namespace Tests\Feature\Code;
 use RuntimeException;
 use Sourcerer\Tool\Manager\Output;
 use Sourcerer\Tool\Code\ShellResult;
+use Sourcerer\Tool\Code\SshAuth;
 use Sourcerer\Tool\Contract\Operator;
 use Sourcerer\Tool\Code\Target;
 
@@ -16,7 +17,7 @@ final class DeployFixtures
      */
     public static function target(
         string $name = 'staging',
-        ?string $identity = null,
+        ?SshAuth $auth = null,
         string $root = '/srv/app',
         string $webroot = '/srv/app/public_html',
         int $backupKeep = 3,
@@ -29,7 +30,7 @@ final class DeployFixtures
             'staging.example.com',
             'deploy',
             22,
-            $identity,
+            $auth ?? new SshAuth(SshAuth::TYPE_KEY, __DIR__ .'/fixtures/auth-key'),
             $webroot,
             $root,
             $rootBase ?? $root,

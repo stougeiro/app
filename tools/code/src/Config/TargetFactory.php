@@ -3,6 +3,7 @@
 namespace Sourcerer\Tool\Code\Config;
 
 use RuntimeException;
+use Sourcerer\Tool\Code\SshAuth;
 use Sourcerer\Tool\Code\Target;
 
 
@@ -19,12 +20,14 @@ final class TargetFactory
         $host = self::requireString($ssh, 'host');
         $user = self::requireString($ssh, 'user');
         $port = self::optionalInt($ssh, 'port', 22);
-        $identity = self::optionalString($ssh, 'identity');
 
-        if ($identity !== null)
-        {
-            $identity = self::resolveIdentity($identity, $root);
+        if (($ssh['identity'] ?? null) !== null) {
+            throw new RuntimeException(
+                "config: target '{$name}' must replace 'ssh.identity' with 'ssh.auth'",
+            );
         }
+
+        $auth = self::auth($name, $ssh, $root);
 
         if ($port < 1 || $port > 65535)
         {
@@ -84,7 +87,7 @@ final class TargetFactory
             $host,
             $user,
             $port,
-            $identity,
+            $auth,
             $webroot,
             $rootDirectory,
             $rootPath['base'],
@@ -96,6 +99,30 @@ final class TargetFactory
             $releaseKeep,
             $eventKeep,
         );
+    }
+
+
+    /** @param array<array-key, mixed> $ssh */
+    private static function auth(string $name, array $ssh, string $root): SshAuth
+    {
+        $auth = $ssh['auth'] ?? null;
+
+        if ( ! is_array($auth)) {
+            throw new RuntimeException(
+                "config: target '{$name}' requires an 'ssh.auth' object",
+            );
+        }
+
+        $type = self::requireString($auth, 'type');
+        $file = self::requireString($auth, 'file');
+
+        if ( ! in_array($type, [SshAuth::TYPE_KEY, SshAuth::TYPE_PASS], true)) {
+            throw new RuntimeException(
+                "config: target '{$name}' has an invalid 'ssh.auth.type'; use: key, pass",
+            );
+        }
+
+        return new SshAuth($type, self::resolveAuthFile($file, $root));
     }
 
 

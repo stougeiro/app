@@ -19,19 +19,11 @@ class Ssh
     public function argv(Target $target, string $remote): array
     {
         $command = [
-            'ssh',
+            ...$target->sshAuth->prefix('ssh'),
             '-p', (string) $target->sshPort,
-            '-o', 'BatchMode=yes',
+            ...$target->sshAuth->options(),
             '-o', 'ConnectTimeout=15',
         ];
-
-        $identity = $target->identityPath();
-
-        if ($identity !== null)
-        {
-            $command[] = '-i';
-            $command[] = $identity;
-        }
 
         $command[] = $target->sshTarget();
         $command[] = $remote;
@@ -42,7 +34,12 @@ class Ssh
 
     public function run(Target $target, string $remote, ?string $stdin = null): ShellResult
     {
-        return $this->shell->run($this->argv($target, $remote), $stdin);
+        return $this->shell->run(
+            $this->argv($target, $remote),
+            $stdin,
+            null,
+            $target->sshAuth->env(),
+        );
     }
 
 

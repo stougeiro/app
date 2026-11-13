@@ -116,16 +116,16 @@ trait ConfigValidationTrait
     }
 
 
-    private static function resolveIdentity(string $identity, string $root): string
+    private static function resolveAuthFile(string $file, string $root): string
     {
-        if (str_starts_with($identity, '~/') || str_starts_with($identity, '/'))
+        if (str_starts_with($file, '~/') || str_starts_with($file, '/'))
         {
-            return $identity;
+            return $file;
         }
 
         $segments = [];
 
-        foreach (explode('/', str_replace('\\', '/', $identity)) as $segment)
+        foreach (explode('/', str_replace('\\', '/', $file)) as $segment)
         {
             if ($segment === '' || $segment === '.')
             {
@@ -136,7 +136,7 @@ trait ConfigValidationTrait
             {
                 if ($segments === [])
                 {
-                    throw new RuntimeException("config: ssh.identity escapes project root: {$identity}");
+                    throw new RuntimeException("config: ssh.auth.file escapes project root: {$file}");
                 }
 
                 array_pop($segments);
@@ -148,7 +148,7 @@ trait ConfigValidationTrait
 
         if ($segments === [])
         {
-            throw new RuntimeException("config: invalid ssh.identity: {$identity}");
+            throw new RuntimeException("config: invalid ssh.auth.file: {$file}");
         }
 
         return rtrim($root, '/') .'/'. implode('/', $segments);

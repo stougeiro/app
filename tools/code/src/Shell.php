@@ -19,6 +19,11 @@ class Shell
             2 => ['pipe', 'w'],
         ];
 
+        if ($env !== null)
+        {
+            $env = array_merge(getenv(), $env);
+        }
+
         /** @var array<int, resource> $pipes */
         $pipes = [];
 

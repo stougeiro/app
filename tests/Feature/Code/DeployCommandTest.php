@@ -25,7 +25,7 @@ function deployCommandWorkspace(string $root): void
     file_put_contents($root .'/.sourcerer/code/config.json', json_encode([
         'targets' => [
             'staging' => [
-                'ssh' => ['host' => 'staging.example.com', 'user' => 'deploy'],
+                'ssh' => ['host' => 'staging.example.com', 'user' => 'deploy', 'auth' => ['type' => 'key', 'file' => __DIR__ . '/fixtures/auth-key']],
                 'root' => ['base' => '/srv/app'],
                 'webroot' => '/srv/app/public_html',
                 'url' => 'https://staging.example.com',
@@ -132,19 +132,19 @@ function deployPromoteWorkspace(): string
     file_put_contents($root .'/.sourcerer/code/config.json', json_encode([
         'targets' => [
             'development' => [
-                'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
+                'ssh' => ['host' => 'example.com', 'user' => 'deploy', 'auth' => ['type' => 'key', 'file' => __DIR__ . '/fixtures/auth-key']],
                 'root' => ['base' => '/srv/dev/app'],
                 'webroot' => '/srv/dev/public_html',
                 'url' => 'https://dev.example.com',
             ],
             'staging' => [
-                'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
+                'ssh' => ['host' => 'example.com', 'user' => 'deploy', 'auth' => ['type' => 'key', 'file' => __DIR__ . '/fixtures/auth-key']],
                 'root' => ['base' => '/srv/staging/app'],
                 'webroot' => '/srv/staging/public_html',
                 'url' => 'https://staging.example.com',
             ],
             'production' => [
-                'ssh' => ['host' => 'example.com', 'user' => 'deploy'],
+                'ssh' => ['host' => 'example.com', 'user' => 'deploy', 'auth' => ['type' => 'key', 'file' => __DIR__ . '/fixtures/auth-key']],
                 'root' => ['base' => '/srv/prod/app'],
                 'webroot' => '/srv/prod/public_html',
                 'url' => 'https://prod.example.com',

@@ -10,6 +10,7 @@ RUN apt-get update \
         git \
         unzip \
         curl \
+        sshpass \
         tar \
     && rm -rf /var/lib/apt/lists/* \
     && install-php-extensions pdo_sqlite

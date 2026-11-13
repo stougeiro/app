@@ -2,9 +2,6 @@
 
 namespace Sourcerer\Tool\Code;
 
-use RuntimeException;
-
-
 class Target
 {
     /**
@@ -16,7 +13,7 @@ class Target
         public readonly string $sshHost,
         public readonly string $sshUser,
         public readonly int $sshPort,
-        public readonly ?string $sshIdentity,
+        public readonly SshAuth $sshAuth,
         public readonly string $webroot,
         public readonly string $root,
         public readonly string $rootBase,
@@ -37,22 +34,4 @@ class Target
     }
 
 
-    public function identityPath(): ?string
-    {
-        if ($this->sshIdentity === null || $this->sshIdentity === '') {
-            return null;
-        }
-
-        if (str_starts_with($this->sshIdentity, '~/')) {
-            $home = getenv('HOME');
-
-            if ($home === false || $home === '') {
-                throw new RuntimeException('HOME is not set to expand '. $this->sshIdentity);
-            }
-
-            return rtrim($home, '/') .'/'. substr($this->sshIdentity, 2);
-        }
-
-        return $this->sshIdentity;
-    }
 }

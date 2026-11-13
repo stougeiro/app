@@ -5,6 +5,7 @@ use Sourcerer\Tool\Code\Remote\RemoteFiles;
 use Sourcerer\Tool\Code\Remote\Scp;
 use Sourcerer\Tool\Code\ShellResult;
 use Sourcerer\Tool\Code\Ssh;
+use Sourcerer\Tool\Code\SshAuth;
 use Tests\Feature\Code\DeployFixtures;
 use Tests\Feature\Code\FakeShell;
 
@@ -20,6 +21,7 @@ test('scp upload and download build the expected argv', function () {
         'scp',
         '-P', '22',
         '-o', 'BatchMode=yes',
+        '-i', DeployFixtures::target()->sshAuth->file,
         '-o', 'ConnectTimeout=15',
         '/tmp/a.tar.gz',
         'deploy@staging.example.com:/srv/app/.deploy/a.tar.gz',
@@ -27,6 +29,7 @@ test('scp upload and download build the expected argv', function () {
         'scp',
         '-P', '22',
         '-o', 'BatchMode=yes',
+        '-i', DeployFixtures::target()->sshAuth->file,
         '-o', 'ConnectTimeout=15',
         'deploy@staging.example.com:/srv/app/.deploy/b.json',
         '/tmp/b.json',
@@ -34,14 +37,26 @@ test('scp upload and download build the expected argv', function () {
 });
 
 
-test('scp uses the configured identity', function () {
+test('scp uses a password and passes SSHPASS', function () {
+    $file = tempnam(sys_get_temp_dir(), 'scp-password-');
+
+    if ($file === false) {
+        throw new RuntimeException('could not create password file');
+    }
+
+    file_put_contents($file, 'secret');
     $shell = new FakeShell(fn (): ShellResult => new ShellResult(0, '', ''));
-    $scp = new Scp(DeployFixtures::target(identity: '/home/deploy/.ssh/key'), $shell);
+    $scp = new Scp(DeployFixtures::target(auth: new SshAuth(SshAuth::TYPE_PASS, $file)), $shell);
 
-    $scp->upload('/tmp/a', '/srv/a');
+    try {
+        $scp->upload('/tmp/a', '/srv/a');
 
-    expect($shell->calls[0]['command'])->toContain('-i')
-        ->and($shell->calls[0]['command'])->toContain('/home/deploy/.ssh/key');
+        expect($shell->calls[0]['command'])->toContain('sshpass')
+            ->and($shell->calls[0]['command'])->toContain('-e')
+            ->and($shell->calls[0]['env'])->toBe(['SSHPASS' => 'secret']);
+    } finally {
+        unlink($file);
+    }
 });
 
 

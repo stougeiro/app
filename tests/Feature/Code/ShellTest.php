@@ -49,3 +49,15 @@ test('mustRun throws on failure', function () {
 test('quotes shell arguments', function () {
     expect(Shell::quote('a b'))->toBe("'a b'");
 });
+
+
+test('preserves the current environment when passing env', function () {
+    $result = (new Shell())->run(
+        [PHP_BINARY, '-r', 'echo getenv("PATH") === false ? "missing" : "present";'],
+        null,
+        null,
+        ['FOO' => 'bar'],
+    );
+
+    expect($result->output())->toBe('present');
+});

@@ -1,6 +1,7 @@
 <?php declare(strict_types=1);
 
 use Sourcerer\Tool\Code\Config;
+use Sourcerer\Tool\Code\SshAuth;
 
 
 /**
@@ -44,7 +45,11 @@ function deployRoot(string $base, ?string $dir = null): array
 function deployConfigTarget(array $overrides = []): array
 {
     return array_replace([
-        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy'],
+        'ssh' => [
+            'host' => 'app.example.com',
+            'user' => 'deploy',
+            'auth' => ['type' => 'key', 'file' => 'auth/key'],
+        ],
         'root' => deployRoot('/srv/app'),
         'webroot' => '/srv/app/public_html',
         'url' => 'https://app.example.com',
@@ -66,7 +71,7 @@ test('loads defaults, explicit root and applies deep merge', function () {
         'global' => [
             'ssh' => [
                 'port' => 2222,
-                'identity' => '~/.ssh/id_ed25519',
+                'auth' => ['type' => 'key', 'file' => '~/.ssh/id_ed25519'],
             ],
             'preserve' => ['/.well-known/***'],
             'keep' => [
@@ -92,7 +97,8 @@ test('loads defaults, explicit root and applies deep merge', function () {
         ->and($target->sshHost)->toBe('staging.example.com')
         ->and($target->sshUser)->toBe('deploy')
         ->and($target->sshPort)->toBe(2222)
-        ->and($target->sshIdentity)->toBe('~/.ssh/id_ed25519')
+        ->and($target->sshAuth->type)->toBe(SshAuth::TYPE_KEY)
+        ->and($target->sshAuth->file)->toBe('~/.ssh/id_ed25519')
         ->and($target->webroot)->toBe('/srv/staging.example.com/public_html')
         ->and($target->root)->toBe('/srv/staging.example.com/app')
         ->and($target->rootBase)->toBe('/srv/staging.example.com/app')
@@ -268,33 +274,93 @@ test('rejects a preserve item that is not a string', function () {
 });
 
 
-test('resolves a relative ssh identity against the config root', function () {
+test('resolves a relative auth file against the config root', function () {
     $file = deployConfigWithTarget(deployConfigTarget([
-        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'identity' => '.sourcerer/code/ssh/key'],
+        'ssh' => [
+            'host' => 'app.example.com',
+            'user' => 'deploy',
+            'auth' => ['type' => 'key', 'file' => 'auth/key'],
+        ],
     ]));
 
-    expect(Config::load($file)->target('staging')->sshIdentity)
-        ->toBe(dirname($file) .'/.sourcerer/code/ssh/key');
+    expect(Config::load($file)->target('staging')->sshAuth->file)
+        ->toBe(dirname($file) .'/auth/key');
 });
 
 
-test('keeps absolute and home-relative ssh identities unchanged', function () {
+test('keeps absolute and home-relative auth files unchanged', function () {
     expect(Config::load(deployConfigWithTarget(deployConfigTarget([
-        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'identity' => '/home/deploy/.ssh/key'],
-    ])))->target('staging')->sshIdentity)->toBe('/home/deploy/.ssh/key');
+        'ssh' => [
+            'host' => 'app.example.com',
+            'user' => 'deploy',
+            'auth' => ['type' => 'key', 'file' => '/home/deploy/.ssh/key'],
+        ],
+    ])))->target('staging')->sshAuth->file)->toBe('/home/deploy/.ssh/key');
 
     expect(Config::load(deployConfigWithTarget(deployConfigTarget([
-        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'identity' => '~/.ssh/key'],
-    ])))->target('staging')->sshIdentity)->toBe('~/.ssh/key');
+        'ssh' => [
+            'host' => 'app.example.com',
+            'user' => 'deploy',
+            'auth' => ['type' => 'key', 'file' => '~/.ssh/key'],
+        ],
+    ])))->target('staging')->sshAuth->file)->toBe('~/.ssh/key');
 });
 
 
-test('rejects a relative ssh identity escaping the project root', function () {
+test('rejects a relative auth file escaping the project root', function () {
     expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'identity' => '../key'],
+        'ssh' => [
+            'host' => 'app.example.com',
+            'user' => 'deploy',
+            'auth' => ['type' => 'key', 'file' => '../key'],
+        ],
     ]))))->toThrow(RuntimeException::class, 'escapes project root');
 });
 
+
+test('accepts key and password auth', function () {
+    $key = Config::load(deployConfigWithTarget(deployConfigTarget([
+        'ssh' => [
+            'host' => 'app.example.com',
+            'user' => 'deploy',
+            'auth' => ['type' => 'key', 'file' => 'auth/key'],
+        ],
+    ])))->target('staging')->sshAuth;
+
+    $password = Config::load(deployConfigWithTarget(deployConfigTarget([
+        'ssh' => [
+            'host' => 'app.example.com',
+            'user' => 'deploy',
+            'auth' => ['type' => 'pass', 'file' => 'auth/password'],
+        ],
+    ])))->target('staging')->sshAuth;
+
+    expect($key->type)->toBe(SshAuth::TYPE_KEY)
+        ->and($password->type)->toBe(SshAuth::TYPE_PASS);
+});
+
+
+test('replaces the global auth with the target auth', function () {
+    $config = Config::load(deployConfigFile([
+        'global' => [
+            'ssh' => [
+                'host' => 'app.example.com',
+                'user' => 'deploy',
+                'auth' => ['type' => 'key', 'file' => 'auth/global-key'],
+            ],
+        ],
+        'targets' => [
+            'staging' => deployConfigTarget([
+                'ssh' => [
+                    'auth' => ['type' => 'pass', 'file' => 'auth/staging-password'],
+                ],
+            ]),
+        ],
+    ]));
+
+    expect($config->target('staging')->sshAuth->type)->toBe(SshAuth::TYPE_PASS)
+        ->and($config->target('staging')->sshAuth->file)->toEndWith('/auth/staging-password');
+});
 
 test('allows development and staging to share non-address settings', function () {
     $config = Config::load(deployConfigFile([
@@ -380,10 +446,10 @@ test('allows the same addresses on different servers', function () {
     $config = Config::load(deployConfigFile([
         'targets' => [
             'development' => deployConfigTarget([
-                'ssh' => ['host' => 'dev.example.com', 'user' => 'deploy'],
+                'ssh' => ['host' => 'dev.example.com', 'user' => 'deploy', 'auth' => ['type' => 'key', 'file' => 'auth/key']],
             ]),
             'staging' => deployConfigTarget([
-                'ssh' => ['host' => 'staging.example.com', 'user' => 'deploy'],
+                'ssh' => ['host' => 'staging.example.com', 'user' => 'deploy', 'auth' => ['type' => 'key', 'file' => 'auth/key']],
             ]),
         ],
     ]));
@@ -499,12 +565,52 @@ test('rejects invalid ssh fields', function () {
     ]))))->toThrow(RuntimeException::class, "'port' must be an integer");
 
     expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'port' => 0],
+        'ssh' => [
+            'host' => 'app.example.com',
+            'user' => 'deploy',
+            'port' => 0,
+            'auth' => ['type' => 'key', 'file' => 'auth/key'],
+        ],
     ]))))->toThrow(RuntimeException::class, 'invalid SSH port');
 
+});
+
+
+test('requires ssh auth', function () {
     expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
-        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy', 'identity' => ''],
-    ]))))->toThrow(RuntimeException::class, "'identity' must be a non-empty string");
+        'ssh' => ['host' => 'app.example.com', 'user' => 'deploy'],
+    ]))))->toThrow(RuntimeException::class, "requires an 'ssh.auth' object");
+});
+
+
+test('rejects invalid ssh auth', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'ssh' => [
+            'host' => 'app.example.com',
+            'user' => 'deploy',
+            'auth' => ['type' => 'token', 'file' => 'auth/key'],
+        ],
+    ]))))->toThrow(RuntimeException::class, "invalid 'ssh.auth.type'");
+
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'ssh' => [
+            'host' => 'app.example.com',
+            'user' => 'deploy',
+            'auth' => ['type' => 'key', 'file' => ''],
+        ],
+    ]))))->toThrow(RuntimeException::class, "'file' must be a non-empty string");
+});
+
+
+test('rejects the legacy ssh identity field', function () {
+    expect(fn () => Config::load(deployConfigWithTarget(deployConfigTarget([
+        'ssh' => [
+            'host' => 'app.example.com',
+            'user' => 'deploy',
+            'identity' => '~/.ssh/key',
+            'auth' => ['type' => 'key', 'file' => 'auth/key'],
+        ],
+    ]))))->toThrow(RuntimeException::class, "replace 'ssh.identity' with 'ssh.auth'");
 });
 
 

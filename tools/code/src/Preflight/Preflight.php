@@ -75,6 +75,7 @@ final class Preflight
         $this->out('transport: '. ($hasRsync ? 'rsync' : 'tar (fallback)'));
 
         $this->checkEnv();
+        $this->checkAuth();
         $this->checkRequirements();
 
         return $hasRsync;
@@ -105,6 +106,21 @@ final class Preflight
             $this->out(
                 "warning: no env override for '{$this->target->name}'; add {$local}",
             );
+        }
+    }
+
+
+    private function checkAuth(): void
+    {
+        $auth = $this->target->sshAuth;
+        $file = $auth->filePath();
+
+        if ( ! is_file($file) || ! is_readable($file)) {
+            throw new RuntimeException('ssh auth file is not readable: '. $file);
+        }
+
+        if ($auth->isPassword()) {
+            $auth->password();
         }
     }
 

@@ -9,9 +9,14 @@ if ! command -v docker >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+DOCKERFILE="$ROOT/tools/manager/Dockerfile"
+DOCKERFILE_HASH="$(sha256sum "$DOCKERFILE" | cut -d' ' -f1)"
+IMAGE_ID="$(docker image inspect -f '{{.Id}}' "$IMAGE" 2>/dev/null || true)"
+IMAGE_HASH="$(docker image inspect -f '{{ index .Config.Labels "sourcerer.dockerfile" }}' "$IMAGE" 2>/dev/null || true)"
+
+if [ -z "$IMAGE_ID" ] || [ "$IMAGE_HASH" != "$DOCKERFILE_HASH" ]; then
     echo "building image $IMAGE..." >&2
-    docker build -q -t "$IMAGE" "$ROOT/tools/manager" >/dev/null
+    docker build -q --label "sourcerer.dockerfile=$DOCKERFILE_HASH" -t "$IMAGE" "$ROOT/tools/manager" >/dev/null
 fi
 
 DOCKER_ARGS=(run --rm -i --add-host=host.docker.internal:host-gateway)

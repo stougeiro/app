@@ -101,7 +101,7 @@ final class TargetGraph
                 $target->sshHost,
                 $target->sshUser,
                 $target->sshPort,
-                $target->sshIdentity,
+                $target->sshAuth,
                 $target->webroot,
                 $target->root,
                 $target->rootBase,

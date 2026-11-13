@@ -24,7 +24,7 @@ test('creates the local code layout and copies the example config', function () 
     $root = deployInitializerRoot();
     $lines = deployInitializer($root)->run();
 
-    expect(is_dir($root .'/.sourcerer/code/ssh'))->toBeTrue()
+    expect(is_dir($root .'/.sourcerer/code/auth'))->toBeTrue()
         ->and(is_dir($root .'/.sourcerer/code/override/development/public'))->toBeTrue()
         ->and(is_dir($root .'/.sourcerer/code/override/staging/application'))->toBeTrue()
         ->and(is_dir($root .'/.sourcerer/code/override/production/public'))->toBeTrue()
@@ -54,7 +54,7 @@ test('is idempotent', function () {
     $initializer->run();
     $initializer->run();
 
-    expect(is_dir($root .'/.sourcerer/code/ssh'))->toBeTrue()
+    expect(is_dir($root .'/.sourcerer/code/auth'))->toBeTrue()
         ->and(is_dir($root .'/.sourcerer/code/override/staging/public'))->toBeTrue()
         ->and(file_get_contents($root .'/.sourcerer/code/config.json'))->toBe('{"global":{},"targets":{}}');
 });
@@ -85,7 +85,7 @@ test('rejects a symlinked code subdirectory', function () {
     $root = deployInitializerRoot();
     mkdir($root .'/.sourcerer/code', 0700, true);
     mkdir($root .'/elsewhere', 0700);
-    symlink($root .'/elsewhere', $root .'/.sourcerer/code/ssh');
+    symlink($root .'/elsewhere', $root .'/.sourcerer/code/auth');
 
     expect(fn () => deployInitializer($root)->run())
         ->toThrow(RuntimeException::class, 'refusing to use symlink');

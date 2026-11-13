@@ -31,7 +31,7 @@ Local `.sourcerer/code/` also contains:
 .sourcerer/code/stub/.htaccess   rewrite stub used when a target is retired
 .sourcerer/code/releases/        local release manifest mirror
 .sourcerer/code/events/          local deploy event mirror
-.sourcerer/code/ssh/             local SSH keys
+.sourcerer/code/auth/            local SSH key and password files
 ```
 
 The whole `.sourcerer/` directory is ignored by Git. It contains target
@@ -50,10 +50,10 @@ usually points to `public_html/` or another document root.
 
 Docker is the only local requirement. The tool image is built on demand from
 `tools/manager/Dockerfile` and contains PHP 8.2, Composer, rsync, OpenSSH, scp,
-curl and tar.
+sshpass, curl and tar.
 
-The image is tagged `stougeiro/sourcerer:local`. If the Dockerfile changes,
-rebuild it explicitly:
+The image is tagged `stougeiro/sourcerer:local`. `./sourcerer` rebuilds it
+automatically when `tools/manager/Dockerfile` changes. To rebuild explicitly:
 
 ```bash
 docker build -t stougeiro/sourcerer:local tools/manager
@@ -155,7 +155,7 @@ Remote retention is configured per target/global:
 Then:
 
 1. edit `.sourcerer/code/config.json`;
-2. place SSH keys in `.sourcerer/code/ssh/` or use keys available under `~/.ssh/`;
+2. place SSH auth files in `.sourcerer/code/auth/` or use files under `~/.ssh/`;
 3. add per-target overrides under `.sourcerer/code/override/<target>/`;
 4. validate the connection:
 
@@ -185,7 +185,10 @@ its own pipeline.
       "host": "example.com",
       "port": 22,
       "user": "deploy",
-      "identity": ".sourcerer/code/ssh/deploy_ed25519"
+      "auth": {
+        "type": "key",
+        "file": "auth/deploy_ed25519"
+      }
     },
     "root": {
       "base": "/home/deploy/domains/example.com"
@@ -225,7 +228,8 @@ its own pipeline.
 | `ssh.host` | SSH host or IP |
 | `ssh.user` | SSH user |
 | `ssh.port` | SSH port, default `22`, valid `1..65535` |
-| `ssh.identity` | SSH key; absolute, `~/...`, or relative to the project root |
+| `ssh.auth.type` | `key` or `pass` |
+| `ssh.auth.file` | Auth file; absolute, `~/...`, or relative to the `.sourcerer/code` config directory |
 | `root.base` | Absolute base directory used to build the remote root |
 | `root.dir` | Optional single directory name appended to `root.base` |
 | `root` | Remote directory that receives `application/` and `vendor/` |
@@ -235,6 +239,47 @@ its own pipeline.
 | `keep.backup` | Remote backups to keep; default `3`, minimum `1` |
 | `keep.release` | Remote releases to keep; default `10`, minimum `1` |
 | `keep.event` | Remote events to keep; default `200`, minimum `1` |
+
+`ssh.auth` is required. It may live in `global.ssh` when every target uses the
+same credentials, or in `target.ssh` when a target differs. A target `auth`
+object replaces the global one entirely.
+
+Key auth:
+
+```json
+"auth": {
+  "type": "key",
+  "file": "auth/deploy_ed25519"
+}
+```
+
+Password auth:
+
+```json
+"auth": {
+  "type": "pass",
+  "file": "auth/locaweb.pass"
+}
+```
+
+Relative `file` paths resolve from the `.sourcerer/code` config directory.
+`~/...` and absolute paths are kept as-is. `auth` is always a file; there is no
+inline password.
+
+Password files are read exactly as stored, without trimming. Create them without
+a trailing newline:
+
+```bash
+printf '%s' 'senha' > .sourcerer/code/auth/locaweb.pass
+chmod 600 .sourcerer/code/auth/locaweb.pass
+```
+
+Password auth uses `sshpass` inside the tool image. Key auth keeps the existing
+`BatchMode=yes` behavior. Password auth uses `BatchMode=no` and
+`StrictHostKeyChecking=accept-new` so the first browser-free connection does not
+hang on a host-key prompt.
+
+The legacy `ssh.identity` field is rejected. Replace it with `ssh.auth`.
 
 `root` is an object:
 

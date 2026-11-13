@@ -84,9 +84,7 @@ final class Transfer
 
             if ($hasRsync)
             {
-                $this->shell->mustRun(
-                    $this->rsyncArgs($source .'/', $destination .'/', [], false, false),
-                );
+                $this->rsync($this->rsyncArgs($source .'/', $destination .'/', [], false, false));
                 continue;
             }
 
@@ -98,29 +96,23 @@ final class Transfer
     private function transferRsync(string $vendor): void
     {
         $this->out('rsync application');
-        $this->shell->mustRun(
-            $this->rsyncArgs(
-                $this->projectRoot .'/application/',
-                $this->target->root .'/application/',
-                $this->applicationExcludes(),
-                false,
-            ),
-        );
+        $this->rsync($this->rsyncArgs(
+            $this->projectRoot .'/application/',
+            $this->target->root .'/application/',
+            $this->applicationExcludes(),
+            false,
+        ));
 
         $this->out('rsync public');
-        $this->shell->mustRun(
-            $this->rsyncArgs(
-                $this->projectRoot .'/public/',
-                $this->target->webroot .'/',
-                $this->publicExcludes(),
-                false,
-            ),
-        );
+        $this->rsync($this->rsyncArgs(
+            $this->projectRoot .'/public/',
+            $this->target->webroot .'/',
+            $this->publicExcludes(),
+            false,
+        ));
 
         $this->out('rsync vendor');
-        $this->shell->mustRun(
-            $this->rsyncArgs($vendor .'/', $this->target->root .'/vendor/', [], false),
-        );
+        $this->rsync($this->rsyncArgs($vendor .'/', $this->target->root .'/vendor/', [], false));
     }
 
 
@@ -243,13 +235,17 @@ final class Transfer
         bool $delete = true,
     ): array {
         $target = $this->target;
-        $ssh = 'ssh -p '. $target->sshPort .' -o BatchMode=yes -o ConnectTimeout=15';
-        $identity = $target->identityPath();
+        $sshParts = [
+            ...$target->sshAuth->prefix('ssh'),
+            '-p', (string) $target->sshPort,
+            ...$target->sshAuth->options(),
+            '-o', 'ConnectTimeout=15',
+        ];
 
-        if ($identity !== null)
-        {
-            $ssh .= ' -i '. escapeshellarg($identity);
-        }
+        $ssh = implode(' ', array_map(
+            static fn (string $part): string => Ssh::quote($part),
+            $sshParts,
+        ));
 
         $args = [
             'rsync', '-az',
@@ -279,6 +275,13 @@ final class Transfer
         $args[] = $target->sshTarget() .':'. $destination;
 
         return $args;
+    }
+
+
+    /** @param list<string> $args */
+    private function rsync(array $args): void
+    {
+        $this->shell->mustRun($args, null, null, $this->target->sshAuth->env());
     }
 
 

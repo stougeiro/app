@@ -133,6 +133,11 @@ class Config
     {
         foreach ($target as $key => $value)
         {
+            if ($key === 'auth') {
+                $defaults[$key] = $value;
+                continue;
+            }
+
             if (
                 is_array($value)
                 && isset($defaults[$key])

@@ -29,7 +29,7 @@ class Initializer
         $lines = [];
         $directories = [
             $base,
-            $base .'/ssh',
+            $base .'/auth',
             $base .'/stub',
             $base .'/releases',
             $base .'/events',

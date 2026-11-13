@@ -17,13 +17,23 @@ final class Scp
 
     public function upload(string $local, string $remote): void
     {
-        $this->shell->mustRun($this->argv($local, $this->target->sshTarget() .':'. $remote));
+        $this->shell->mustRun(
+            $this->argv($local, $this->target->sshTarget() .':'. $remote),
+            null,
+            null,
+            $this->target->sshAuth->env(),
+        );
     }
 
 
     public function download(string $remote, string $local): void
     {
-        $this->shell->mustRun($this->argv($this->target->sshTarget() .':'. $remote, $local));
+        $this->shell->mustRun(
+            $this->argv($this->target->sshTarget() .':'. $remote, $local),
+            null,
+            null,
+            $this->target->sshAuth->env(),
+        );
     }
 
 
@@ -33,24 +43,14 @@ final class Scp
     private function argv(string $source, string $destination): array
     {
         $target = $this->target;
-        $scp = [
-            'scp',
+
+        return [
+            ...$target->sshAuth->prefix('scp'),
             '-P', (string) $target->sshPort,
-            '-o', 'BatchMode=yes',
+            ...$target->sshAuth->options(),
             '-o', 'ConnectTimeout=15',
+            $source,
+            $destination,
         ];
-
-        $identity = $target->identityPath();
-
-        if ($identity !== null)
-        {
-            $scp[] = '-i';
-            $scp[] = $identity;
-        }
-
-        $scp[] = $source;
-        $scp[] = $destination;
-
-        return $scp;
     }
 }
