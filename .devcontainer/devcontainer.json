@@ -1,0 +1,17 @@
+{
+  "name": "PHP82",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "bmewburn.vscode-intelephense-client"
+      ],
+      "settings": {
+        "php.validate.enable": true
+      }
+    }
+  }
+}
